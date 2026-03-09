@@ -94,7 +94,7 @@ header h1 span { color: #60a5fa; }
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: 12px;
+  margin-right: 12px;
 }
 
 .speed-control label {
@@ -488,14 +488,14 @@ canvas#nnCanvas {
 </header>
 
 <div class="controls-bar">
-  <button class="btn btn-success" id="btnTrain" onclick="toggleTraining()">&#9654; Train</button>
-  <button class="btn btn-primary btn-sm" id="btnWatch" onclick="watchGame()">&#9655; Watch Game</button>
-  <button class="btn btn-danger btn-sm" id="btnReset" onclick="resetTraining()">Reset</button>
   <div class="speed-control">
     <label>Speed</label>
     <input type="range" id="speedSlider" min="0" max="7" value="0" oninput="updateSpeed()">
     <span class="speed-badge" id="speedLabel">1x</span>
   </div>
+  <button class="btn btn-success" id="btnTrain" onclick="toggleTraining()">&#9654; Train</button>
+  <button class="btn btn-primary btn-sm" id="btnWatch" onclick="watchGame()">&#9655; Watch Game</button>
+  <button class="btn btn-danger btn-sm" id="btnReset" onclick="resetTraining()">Reset</button>
 </div>
 
 <div class="params-bar">
