@@ -11,7 +11,7 @@
   --bg: #0f172a;
   --card: #1e293b;
   --primary: #3b82f6;
-  --primary-dark: #2563eb;
+  --primary-dark: #60a5fa;
   --header-bg: #0b1120;
   --text: #e2e8f0;
   --text-light: #94a3b8;
@@ -34,33 +34,24 @@ body {
   min-height: 100vh;
 }
 
-header {
-  background: var(--header-bg);
-  color: white;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-header h1 {
-  font-size: 20px;
+.app-title {
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.5px;
+  color: white;
+  margin-right: 12px;
+  white-space: nowrap;
 }
 
-header h1 span { color: #60a5fa; }
-
+.app-title span { color: #60a5fa; }
 
 .controls-bar {
-  background: var(--card);
+  background: var(--header-bg);
   border-bottom: 1px solid var(--border);
-  padding: 12px 24px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   box-shadow: var(--shadow);
 }
@@ -93,8 +84,8 @@ header h1 span { color: #60a5fa; }
 .speed-control {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 12px;
+  gap: 6px;
+  margin-right: 8px;
 }
 
 .speed-control label {
@@ -106,7 +97,7 @@ header h1 span { color: #60a5fa; }
 }
 
 .speed-control input[type="range"] {
-  width: 140px;
+  width: 100px;
   accent-color: var(--primary);
 }
 
@@ -483,11 +474,8 @@ canvas#nnCanvas {
 </head>
 <body>
 
-<header>
-  <h1>Breakout <span>DQN</span> Trainer</h1>
-</header>
-
 <div class="controls-bar">
+  <h1 class="app-title">Breakout <span>DQN</span> Trainer</h1>
   <div class="speed-control">
     <label>Speed</label>
     <input type="range" id="speedSlider" min="0" max="7" value="0" oninput="updateSpeed()">
@@ -661,6 +649,22 @@ canvas#nnCanvas {
             the table &mdash; it takes in a description of the current game state and outputs a Q-value for each
             possible action (left, stay, right). The agent then picks the action with the highest predicted value.
           </p>
+        </div>
+
+        <div class="info-section">
+          <h3><span class="section-icon">&#128290;</span> Network Architecture</h3>
+          <p>
+            This DQN uses a fully-connected neural network with <strong>2,883 trainable parameters</strong> (weights and biases), arranged in four layers:
+          </p>
+          <ol>
+            <li><strong>Input (10 neurons)</strong> &mdash; one per game feature: paddle position, ball position &amp; velocity, predicted landing point, paddle offset, distance, and brick distribution left/right.</li>
+            <li><strong>Hidden 1 (64 neurons)</strong> &mdash; applies ReLU activation. Connects to every input, producing 10&times;64&nbsp;+&nbsp;64&nbsp;=&nbsp;704 parameters.</li>
+            <li><strong>Hidden 2 (32 neurons)</strong> &mdash; another ReLU layer. 64&times;32&nbsp;+&nbsp;32&nbsp;=&nbsp;2,080 parameters.</li>
+            <li><strong>Output (3 neurons)</strong> &mdash; one Q-value per action (left, stay, right). Linear activation. 32&times;3&nbsp;+&nbsp;3&nbsp;=&nbsp;99 parameters.</li>
+          </ol>
+          <div class="tip-box">
+            This is deliberately small so it trains in your browser in minutes. Production DQNs (e.g. Atari) use convolutional layers with millions of parameters and train on GPUs for hours.
+          </div>
         </div>
 
         <div class="info-section">
