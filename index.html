@@ -315,6 +315,56 @@ canvas#nnCanvas {
   border-radius: 2px;
 }
 
+/* NN Canvas Tooltip */
+.nn-tooltip {
+  display: none;
+  position: absolute;
+  z-index: 80;
+  background: var(--header-bg);
+  color: #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 300px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.nn-tooltip .tt-label {
+  font-weight: 700;
+  color: #93c5fd;
+  margin-bottom: 2px;
+}
+
+.nn-tooltip .tt-desc {
+  color: #cbd5e1;
+  font-size: 11px;
+  white-space: normal;
+  margin-bottom: 4px;
+}
+
+.nn-tooltip .tt-val {
+  font-family: 'SF Mono', Monaco, 'Consolas', monospace;
+  font-size: 12px;
+  color: #fbbf24;
+}
+
+.nn-tooltip .tt-bar-wrap {
+  margin-top: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.nn-tooltip .tt-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.15s;
+}
+
 /* Tooltips */
 .param-slider {
   position: relative;
@@ -558,8 +608,9 @@ canvas#nnCanvas {
         <div class="card-subtitle" id="nnSubtitle">10 &rarr; 64 &rarr; 32 &rarr; 3 | Weights update live</div>
       </div>
     </div>
-    <div class="card-body">
+    <div class="card-body" style="position:relative;">
       <canvas id="nnCanvas" width="520" height="400"></canvas>
+      <div class="nn-tooltip" id="nnTooltip"></div>
       <div class="nn-legend">
         <div class="nn-legend-item">
           <div class="nn-legend-swatch" style="background:#ef4444"></div>
@@ -693,6 +744,28 @@ const BRICK_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
 
 const FEATURE_NAMES = ['Pad X', 'Ball X', 'Ball Y', 'VelX', 'VelY',
   'Land X', 'Pad-Land', 'Dist', 'BrkLeft', 'BrkRight'];
+
+const FEATURE_DESCS = [
+  'Paddle horizontal position. 0 = left edge, 1 = right edge.',
+  'Ball horizontal position. 0 = left edge, 1 = right edge.',
+  'Ball vertical position. 0 = top of screen, 1 = bottom.',
+  'Ball horizontal velocity. 0 = moving left, 0.5 = still, 1 = moving right.',
+  'Ball vertical velocity. 0 = moving up, 0.5 = still, 1 = moving down.',
+  'Predicted landing X \u2014 where the ball will cross the paddle line, accounting for wall bounces. This is the key feature the agent uses to position itself.',
+  'Offset between paddle and predicted landing. 0.5 = perfectly aligned. Below 0.5 = ball landing to the right of paddle.',
+  'Vertical distance from ball to paddle. 1 = ball at top, 0 = ball at paddle height. Tells the agent how much time it has.',
+  'Fraction of remaining bricks to the left of the ball. Helps the agent understand where bricks are concentrated.',
+  'Fraction of remaining bricks to the right of the ball. Together with BrkLeft, gives a sense of brick distribution.',
+];
+
+const ACTION_DESCS = [
+  'Move the paddle to the left.',
+  'Keep the paddle still.',
+  'Move the paddle to the right.',
+];
+
+// nodePos is stored globally so the tooltip mousemove handler can read it
+let nnNodePos = [];
 
 const SPEED_LEVELS = [
   { label: '1x',   mode: 'frame', stepsPerTick: 1,    delay: 50  },
@@ -1367,10 +1440,11 @@ function drawNNVisualization() {
     const maxVisible = Math.min(n, 40);
     for (let i = 0; i < maxVisible; i++) {
       const y = padT + ((i + 0.5) / maxVisible) * plotH;
-      positions.push({ x, y });
+      positions.push({ x, y, layerIdx: l, nodeIdx: i });
     }
     nodePos.push(positions);
   }
+  nnNodePos = nodePos; // expose for tooltip handler
 
   // Draw connections
   for (let l = 0; l < nL - 1; l++) {
@@ -1393,11 +1467,14 @@ function drawNNVisualization() {
         const threshold = (fromN > 20 || toN > 20) ? 0.15 : 0.08;
         if (mag < threshold) continue;
 
-        const alpha = 0.06 + mag * 0.35;
-        const lw = 0.3 + mag * 2.2;
-        ctx.strokeStyle = weight > 0
-          ? `rgba(239, 68, 68, ${alpha})`
-          : `rgba(59, 130, 246, ${alpha})`;
+        // Richer colour gradient: faint at low mag, vivid at high mag
+        const alpha = 0.04 + mag * mag * 0.55;
+        const lw = 0.3 + mag * 2.5;
+        // Positive: red-orange spectrum. Negative: blue-cyan spectrum.
+        const r1 = weight > 0 ? Math.round(220 + mag * 35) : Math.round(30 + mag * 40);
+        const g1 = weight > 0 ? Math.round(50 + mag * 30)  : Math.round(100 + mag * 60);
+        const b1 = weight > 0 ? Math.round(50)              : Math.round(200 + mag * 55);
+        ctx.strokeStyle = `rgba(${r1}, ${g1}, ${b1}, ${alpha})`;
         ctx.lineWidth = lw;
         ctx.beginPath();
         ctx.moveTo(nodePos[l][f].x, nodePos[l][f].y);
@@ -1679,6 +1756,136 @@ function positionTooltips() {
     }
   });
 }
+
+// ========================================================================
+// NEURAL NETWORK TOOLTIP
+// ========================================================================
+(function setupNNTooltip() {
+  const canvas = document.getElementById('nnCanvas');
+  const tooltip = document.getElementById('nnTooltip');
+  const cardBody = canvas.parentElement;
+
+  function getLayerLabel(l, nL) {
+    if (l === 0) return 'Input Layer';
+    if (l === nL - 1) return 'Output Layer';
+    return 'Hidden Layer ' + l;
+  }
+
+  canvas.addEventListener('mousemove', function(e) {
+    if (!policyNet || !policyNet.activations || nnNodePos.length === 0) {
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.clientWidth / rect.width;
+    const scaleY = canvas.clientHeight / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    // Find nearest node
+    let closest = null, closestDist = Infinity;
+    for (let l = 0; l < nnNodePos.length; l++) {
+      for (let i = 0; i < nnNodePos[l].length; i++) {
+        const node = nnNodePos[l][i];
+        const d = Math.hypot(mx - node.x, my - node.y);
+        if (d < closestDist) { closestDist = d; closest = { l, i, x: node.x, y: node.y }; }
+      }
+    }
+
+    const hitRadius = 18;
+    if (!closest || closestDist > hitRadius) {
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    const { l, i } = closest;
+    const nL = nnNodePos.length;
+    const acts = policyNet.activations;
+    const actVal = (acts && acts[l] && i < acts[l].length) ? acts[l][i] : null;
+
+    let html = '';
+
+    if (l === 0) {
+      // Input layer — show feature name, description, value
+      const name = FEATURE_NAMES[i] || ('Feature ' + i);
+      const desc = FEATURE_DESCS[i] || '';
+      const val = actVal !== null ? actVal.toFixed(4) : '—';
+      html += '<div class="tt-label">' + name + '</div>';
+      html += '<div class="tt-desc">' + desc + '</div>';
+      html += '<div class="tt-val">Value: ' + val + '</div>';
+      // Mini bar
+      const pct = actVal !== null ? Math.min(100, Math.max(0, actVal * 100)) : 0;
+      html += '<div class="tt-bar-wrap"><div class="tt-bar" style="width:' + pct + '%;background:#3b82f6;"></div></div>';
+
+    } else if (l === nL - 1) {
+      // Output layer — show action, Q-value, whether best
+      const actionName = ACTION_NAMES[i] || ('Action ' + i);
+      const actionDesc = ACTION_DESCS[i] || '';
+      const qVal = actVal !== null ? actVal.toFixed(3) : '—';
+      const bestA = acts ? argmax(acts[nL - 1]) : -1;
+      const isBest = i === bestA;
+      html += '<div class="tt-label">' + actionName + (isBest ? ' ★ Best' : '') + '</div>';
+      html += '<div class="tt-desc">' + actionDesc + '</div>';
+      html += '<div class="tt-val">Q-value: ' + qVal + '</div>';
+      if (isBest) {
+        html += '<div style="color:#4ade80;font-size:11px;margin-top:2px;">The agent would choose this action right now.</div>';
+      }
+      // Show weight stats feeding into this output
+      const wLayer = policyNet.weights[l - 1];
+      const prevSize = policyNet.sizes[l - 1];
+      let wSum = 0, wAbsMax = 0, wCount = 0;
+      for (let p = 0; p < prevSize; p++) {
+        const w = wLayer[p * policyNet.sizes[l] + i];
+        wSum += w;
+        wAbsMax = Math.max(wAbsMax, Math.abs(w));
+        wCount++;
+      }
+      html += '<div style="color:#94a3b8;font-size:10.5px;margin-top:4px;">Incoming weights: mean ' + (wSum / wCount).toFixed(3) + ', max |w| ' + wAbsMax.toFixed(3) + '</div>';
+      html += '<div style="color:#94a3b8;font-size:10.5px;">Bias: ' + policyNet.biases[l - 1][i].toFixed(4) + '</div>';
+
+    } else {
+      // Hidden layer — show neuron index, activation, ReLU status, weight stats
+      const activation = actVal !== null ? actVal.toFixed(4) : '—';
+      const isActive = actVal !== null && actVal > 0;
+      html += '<div class="tt-label">' + getLayerLabel(l, nL) + ', Neuron ' + i + '</div>';
+      html += '<div class="tt-desc">Applies ReLU: outputs max(0, weighted sum). ' + (isActive ? 'Currently <span style="color:#4ade80;">active</span> (firing).' : 'Currently <span style="color:#f87171;">inactive</span> (suppressed by ReLU).') + '</div>';
+      html += '<div class="tt-val">Activation: ' + activation + '</div>';
+      // Weight stats
+      const wLayer = policyNet.weights[l - 1];
+      const prevSize = policyNet.sizes[l - 1];
+      let wMin = Infinity, wMax = -Infinity, wAbsSum = 0;
+      for (let p = 0; p < prevSize; p++) {
+        const w = wLayer[p * policyNet.sizes[l] + i];
+        wMin = Math.min(wMin, w);
+        wMax = Math.max(wMax, w);
+        wAbsSum += Math.abs(w);
+      }
+      html += '<div style="color:#94a3b8;font-size:10.5px;margin-top:4px;">Incoming weights: min ' + wMin.toFixed(3) + ', max ' + wMax.toFixed(3) + ', mean |w| ' + (wAbsSum / prevSize).toFixed(3) + '</div>';
+      html += '<div style="color:#94a3b8;font-size:10.5px;">Bias: ' + policyNet.biases[l - 1][i].toFixed(4) + '</div>';
+    }
+
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+
+    // Position tooltip relative to card body
+    const cardRect = cardBody.getBoundingClientRect();
+    let tipX = e.clientX - cardRect.left + 14;
+    let tipY = e.clientY - cardRect.top - 10;
+    // Keep within card bounds
+    const tipW = tooltip.offsetWidth;
+    const tipH = tooltip.offsetHeight;
+    if (tipX + tipW > cardBody.clientWidth - 8) tipX = e.clientX - cardRect.left - tipW - 10;
+    if (tipY + tipH > cardBody.clientHeight - 8) tipY = cardBody.clientHeight - tipH - 8;
+    if (tipY < 4) tipY = 4;
+    tooltip.style.left = tipX + 'px';
+    tooltip.style.top = tipY + 'px';
+  });
+
+  canvas.addEventListener('mouseleave', function() {
+    tooltip.style.display = 'none';
+  });
+})();
 
 function init() {
   initState();
