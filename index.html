@@ -1286,23 +1286,33 @@ function resetTraining() {
 // ========================================================================
 // WATCH GAME MODE
 // ========================================================================
+let watchTimerId = null;
+let wasTrainingBeforeWatch = false;
+
 function watchGame() {
-  if (watchMode) return;
-  const wasTraining = isTraining;
+  if (watchMode) {
+    stopWatching();
+    return;
+  }
+  wasTrainingBeforeWatch = isTraining;
   if (isTraining) pauseTraining();
   watchMode = true;
-  document.getElementById('btnWatch').disabled = true;
+  document.getElementById('btnWatch').innerHTML = '&#9632; Stop Watching';
+  document.getElementById('btnWatch').className = 'btn btn-warning btn-sm';
   document.getElementById('btnTrain').disabled = true;
 
+  playWatchEpisode();
+}
+
+function playWatchEpisode() {
+  if (!watchMode) return;
   const gs = gameReset();
-  let watchReward = 0;
 
   function watchStep() {
+    if (!watchMode) return;
     if (gs.done) {
-      watchMode = false;
-      document.getElementById('btnWatch').disabled = false;
-      document.getElementById('btnTrain').disabled = false;
-      if (wasTraining) startTraining();
+      // start another episode automatically
+      setTimeout(() => playWatchEpisode(), 500);
       return;
     }
     const features = gameGetFeatures(gs);
@@ -1311,13 +1321,21 @@ function watchGame() {
     lastAction = action;
     lastActionRandom = false;
     gameStep(gs, action);
-    watchReward += 0;
     renderGameCanvas(gs);
     drawNNVisualization();
     updateStats();
-    setTimeout(watchStep, 33);
+    watchTimerId = setTimeout(watchStep, 33);
   }
   watchStep();
+}
+
+function stopWatching() {
+  watchMode = false;
+  if (watchTimerId) { clearTimeout(watchTimerId); watchTimerId = null; }
+  document.getElementById('btnWatch').innerHTML = '&#9655; Watch Game';
+  document.getElementById('btnWatch').className = 'btn btn-primary btn-sm';
+  document.getElementById('btnTrain').disabled = false;
+  if (wasTrainingBeforeWatch) startTraining();
 }
 
 // ========================================================================
