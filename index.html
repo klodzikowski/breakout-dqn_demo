@@ -1,1918 +1,780 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Breakout DQN Trainer</title>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg: #f0f2f5;
-  --card: #ffffff;
-  --primary: #3b82f6;
-  --primary-dark: #2563eb;
-  --header-bg: #1e293b;
-  --text: #334155;
-  --text-light: #64748b;
-  --border: #e2e8f0;
-  --success: #22c55e;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
-  --game-bg: #0f172a;
-  --paddle-color: #e2e8f0;
-  --ball-color: #ffffff;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  min-height: 100vh;
-}
-
-header {
-  background: var(--header-bg);
-  color: white;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-header h1 {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-header h1 span { color: #60a5fa; }
-
-
-.controls-bar {
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  box-shadow: var(--shadow);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
-.btn:active { transform: translateY(0); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-.btn-primary { background: var(--primary); color: white; }
-.btn-primary:hover { background: var(--primary-dark); }
-.btn-success { background: var(--success); color: white; }
-.btn-danger { background: var(--danger); color: white; }
-.btn-secondary { background: #e2e8f0; color: var(--text); }
-.btn-secondary:hover { background: #cbd5e1; }
-.btn-sm { padding: 6px 10px; font-size: 12px; }
-
-.speed-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 12px;
-}
-
-.speed-control label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-light);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.speed-control input[type="range"] {
-  width: 140px;
-  accent-color: var(--primary);
-}
-
-.speed-badge {
-  background: var(--primary);
-  color: white;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 700;
-  min-width: 48px;
-  text-align: center;
-}
-
-.params-bar {
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-  padding: 10px 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 6px 20px;
-  overflow: visible;
-  position: relative;
-  z-index: 50;
-}
-
-.param-slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.param-slider label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-light);
-  white-space: nowrap;
-  min-width: 100px;
-}
-
-.param-slider input[type="range"] {
-  flex: 1;
-  accent-color: var(--primary);
-  min-width: 60px;
-}
-
-.param-slider .param-val {
-  font-weight: 700;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  min-width: 52px;
-  text-align: right;
-}
-
-.stats-bar {
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 24px;
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.stat-label {
-  color: var(--text-light);
-  font-weight: 500;
-}
-
-.stat-value {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-value.explore { color: var(--danger); }
-.stat-value.exploit { color: var(--success); }
-
-.action-indicator {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  min-width: 50px;
-  text-align: center;
-}
-
-.action-indicator.random { background: #fecdd3; color: #be123c; }
-.action-indicator.greedy { background: #bbf7d0; color: #15803d; }
-
-.main-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 16px 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.card {
-  background: var(--card);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
-.card-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.card-subtitle {
-  font-size: 11px;
-  color: var(--text-light);
-}
-
-.card-body { padding: 16px; }
-
-.chart-container { grid-column: 1 / -1; }
-canvas#chartCanvas { width: 100%; height: 200px; display: block; }
-
-.info-panel { grid-column: 1 / -1; }
-
-.info-panel details {
-  font-size: 13px;
-  color: var(--text);
-}
-
-.info-panel summary {
-  cursor: pointer;
-  font-weight: 700;
-  color: var(--text);
-  padding: 4px 0;
-}
-
-.info-panel ul {
-  margin-top: 8px;
-  padding-left: 20px;
-}
-
-.info-panel li {
-  margin-bottom: 6px;
-  line-height: 1.6;
-}
-
-.info-panel code {
-  background: #f1f5f9;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.game-canvas-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: var(--game-bg);
-  border-radius: 8px;
-  padding: 8px;
-}
-
-canvas#gameCanvas {
-  display: block;
-  border-radius: 4px;
-  image-rendering: auto;
-}
-
-canvas#nnCanvas {
-  width: 100%;
-  display: block;
-}
-
-.nn-legend {
-  display: flex;
-  gap: 16px;
-  font-size: 11px;
-  color: var(--text-light);
-  margin-top: 8px;
-}
-
-.nn-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.nn-legend-swatch {
-  width: 20px;
-  height: 3px;
-  border-radius: 2px;
-}
-
-/* NN Canvas Tooltip */
-.nn-tooltip {
-  display: none;
-  position: absolute;
-  z-index: 80;
-  background: var(--header-bg);
-  color: #e2e8f0;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.6;
-  max-width: 300px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.nn-tooltip .tt-label {
-  font-weight: 700;
-  color: #93c5fd;
-  margin-bottom: 2px;
-}
-
-.nn-tooltip .tt-desc {
-  color: #cbd5e1;
-  font-size: 11px;
-  white-space: normal;
-  margin-bottom: 4px;
-}
-
-.nn-tooltip .tt-val {
-  font-family: 'SF Mono', Monaco, 'Consolas', monospace;
-  font-size: 12px;
-  color: #fbbf24;
-}
-
-.nn-tooltip .tt-bar-wrap {
-  margin-top: 4px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 3px;
-  height: 6px;
-  overflow: hidden;
-}
-
-.nn-tooltip .tt-bar {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.15s;
-}
-
-/* Tooltips */
-.param-slider {
-  position: relative;
-}
-
-.param-slider label {
-  cursor: help;
-  border-bottom: 1px dotted #94a3b8;
-}
-
-.param-tooltip {
-  display: none;
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 100;
-  background: var(--header-bg);
-  color: #e2e8f0;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.55;
-  width: 300px;
-  max-width: 90vw;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-  pointer-events: none;
-}
-
-.param-tooltip::before {
-  content: '';
-  position: absolute;
-  bottom: 100%;
-  left: 24px;
-  border: 6px solid transparent;
-  border-bottom-color: var(--header-bg);
-}
-
-.param-tooltip.tip-right {
-  left: auto;
-  right: 0;
-}
-
-.param-tooltip.tip-right::before {
-  left: auto;
-  right: 24px;
-}
-
-.param-slider:hover .param-tooltip {
-  display: block;
-}
-
-/* Info panel sections */
-.info-section { margin-bottom: 20px; }
-.info-section:last-child { margin-bottom: 0; }
-
-.info-section h3 {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.info-section h3 .section-icon {
-  font-size: 16px;
-}
-
-.info-section p {
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text);
-  margin-bottom: 8px;
-}
-
-.info-section ol {
-  margin-top: 6px;
-  padding-left: 22px;
-}
-
-.info-section ol li {
-  margin-bottom: 8px;
-  line-height: 1.65;
-  font-size: 13px;
-}
-
-.info-section ol li strong {
-  color: var(--primary-dark);
-}
-
-.tip-box {
-  background: #f0f7ff;
-  border-left: 3px solid var(--primary);
-  padding: 10px 14px;
-  border-radius: 0 8px 8px 0;
-  margin-top: 8px;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text);
-}
-
-.tip-box strong {
-  color: var(--primary-dark);
-}
-
-@media (max-width: 900px) {
-  .main-content {
-    grid-template-columns: 1fr;
-  }
-  .chart-container, .info-panel { grid-column: 1; }
-  .params-bar { grid-template-columns: 1fr 1fr; }
-  .param-tooltip { width: 240px; }
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrozenLake Q-Learning Visualizer</title>
+    <!-- Chart.js for progress graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tailwind CSS for rapid UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .agent-pop {
+            animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes pop {
+            0% { transform: scale(0.5); }
+            100% { transform: scale(1); }
+        }
+    </style>
 </head>
-<body>
+<body class="bg-slate-900 text-slate-200 font-sans min-h-screen p-4 flex flex-col">
 
-<header>
-  <h1>Breakout <span>DQN</span> Trainer</h1>
-</header>
+    <!-- Header Section -->
+    <header class="mb-6 text-center">
+        <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
+            Q-Learning Explorer: FrozenLake
+        </h1>
+        <p class="text-slate-400 max-w-2xl mx-auto">
+            Watch the RL agent learn to navigate the grid. The heatmap shows the agent's Q-values (expected future rewards) for moving Left, Down, Right, or Up from each tile.
+        </p>
+    </header>
 
-<div class="controls-bar">
-  <button class="btn btn-success" id="btnTrain" onclick="toggleTraining()">&#9654; Train</button>
-  <button class="btn btn-primary btn-sm" id="btnWatch" onclick="watchGame()">&#9655; Watch Game</button>
-  <button class="btn btn-danger btn-sm" id="btnReset" onclick="resetTraining()">Reset</button>
-  <div class="speed-control">
-    <label>Speed</label>
-    <input type="range" id="speedSlider" min="0" max="7" value="0" oninput="updateSpeed()">
-    <span class="speed-badge" id="speedLabel">1x</span>
-  </div>
-</div>
+    <!-- Main Content Area -->
+    <div class="flex-1 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Panel: Controls & Hyperparameters (3 columns) -->
+        <div class="lg:col-span-3 bg-slate-800 p-5 rounded-2xl shadow-xl border border-slate-700 flex flex-col gap-6">
+            
+            <!-- Playback Controls -->
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <span>🎮</span> Playback
+                </h2>
+                <div class="flex gap-2 mb-4">
+                    <button id="btn-play" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition-colors">
+                        Play
+                    </button>
+                    <button id="btn-step" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded transition-colors">
+                        Step
+                    </button>
+                </div>
+                
+                <div class="mb-2">
+                    <div class="flex justify-between text-sm mb-1">
+                        <label for="speed-slider" class="text-slate-300">Training Speed</label>
+                        <span id="speed-val" class="font-mono text-cyan-400">10x</span>
+                    </div>
+                    <!-- Speed ranges from 1 to 1000. Under 100 is visual, over 100 speeds through multiple steps per frame -->
+                    <input type="range" id="speed-slider" min="1" max="500" value="10" class="w-full accent-cyan-500">
+                </div>
+                <button id="btn-reset" class="w-full bg-red-900/50 hover:bg-red-800/80 text-red-200 border border-red-800 font-bold py-2 px-4 rounded mt-2 transition-colors">
+                    Reset Agent & Q-Table
+                </button>
+            </div>
 
-<div class="params-bar">
-  <div class="param-slider">
-    <label>Learning Rate</label>
-    <div class="param-tooltip">Controls how much the network weights change on each training step. Too high and the agent becomes unstable, forgetting what it learnt. Too low and it barely learns at all. A good starting point is around 0.001&ndash;0.003.</div>
-    <input type="range" id="paramLR" min="1" max="100" value="30"
-      oninput="syncParam(this,'valLR',10000,4)">
-    <span class="param-val" id="valLR">0.0030</span>
-  </div>
-  <div class="param-slider">
-    <label>Discount &gamma;</label>
-    <div class="param-tooltip">Determines how much the agent values future rewards versus immediate ones. At 0.99, future rewards are nearly as important as current ones &mdash; the agent plans ahead. Lower values make the agent short-sighted, chasing quick wins instead of long-term strategy.</div>
-    <input type="range" id="paramGamma" min="90" max="100" value="99"
-      oninput="syncParam(this,'valGamma',100,2)">
-    <span class="param-val" id="valGamma">0.99</span>
-  </div>
-  <div class="param-slider">
-    <label>Epsilon Start</label>
-    <div class="param-tooltip">The initial probability of taking a random action instead of following the network&rsquo;s advice. Starting at 1.0 means the agent explores purely at random early on, which helps it discover which actions lead to rewards before it starts exploiting that knowledge.</div>
-    <input type="range" id="paramEpsStart" min="50" max="100" value="100"
-      oninput="syncParam(this,'valEpsStart',100,2)">
-    <span class="param-val" id="valEpsStart">1.00</span>
-  </div>
-  <div class="param-slider">
-    <label>Epsilon Min</label>
-    <div class="param-tooltip">The lowest exploration rate the agent will ever reach. Even after extensive training, keeping a small amount of randomness (e.g. 0.05) prevents the agent from getting permanently stuck in suboptimal habits. Think of it as always staying a little curious.</div>
-    <input type="range" id="paramEpsMin" min="1" max="20" value="5"
-      oninput="syncParam(this,'valEpsMin',100,2)">
-    <span class="param-val" id="valEpsMin">0.05</span>
-  </div>
-  <div class="param-slider">
-    <label>Eps Decay /ep</label>
-    <div class="param-tooltip">After each episode, epsilon is multiplied by this factor. At 0.995, it takes roughly 460 episodes to go from 1.0 down to 0.1. Lower values (e.g. 0.990) make the agent exploit sooner; higher values (e.g. 0.999) give it more time to explore before committing.</div>
-    <input type="range" id="paramEpsDecay" min="980" max="1000" value="995"
-      oninput="syncParam(this,'valEpsDecay',1000,3)">
-    <span class="param-val" id="valEpsDecay">0.995</span>
-  </div>
-  <div class="param-slider">
-    <label>Replay Buffer</label>
-    <div class="param-tooltip">The maximum number of past experiences (state, action, reward, next state) stored in memory. During training, random samples are drawn from this buffer. A larger buffer provides more diverse training data, but also means older (possibly outdated) experiences stick around longer.</div>
-    <input type="range" id="paramBuffer" min="1" max="20" value="10"
-      oninput="syncBuffer()">
-    <span class="param-val" id="valBuffer">10,000</span>
-  </div>
-  <div class="param-slider">
-    <label>Batch Size</label>
-    <div class="param-tooltip">How many experiences are sampled from the replay buffer for each training update. Larger batches give more stable gradient estimates but are computationally heavier. Smaller batches learn faster per step but with more noise &mdash; 32 is a solid default.</div>
-    <input type="range" id="paramBatch" min="1" max="8" value="4"
-      oninput="syncBatch()">
-    <span class="param-val" id="valBatch">32</span>
-  </div>
-  <div class="param-slider">
-    <label>Target Update</label>
-    <div class="param-tooltip">How often (in steps) the target network is refreshed with the policy network&rsquo;s weights. The target network provides stable Q-value targets during training. Updating it too frequently causes instability; too infrequently means the agent trains against stale targets.</div>
-    <input type="range" id="paramTarget" min="1" max="20" value="20"
-      oninput="syncTarget()">
-    <span class="param-val" id="valTarget">1,000</span>
-  </div>
-</div>
+            <hr class="border-slate-700">
 
-<div class="stats-bar">
-  <div class="stat">
-    <span class="stat-label">Episode</span>
-    <span class="stat-value" id="statEpisode">0</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Step</span>
-    <span class="stat-value" id="statStep">0</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Epsilon</span>
-    <span class="stat-value explore" id="statEpsilon">1.000</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Avg Bricks (100)</span>
-    <span class="stat-value" id="statAvgScore">0.0</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Max Score</span>
-    <span class="stat-value" id="statMaxScore">0</span>
-  </div>
-  <div class="stat">
-    <span class="stat-label">Action</span>
-    <span class="action-indicator" id="statAction">--</span>
-  </div>
-</div>
+            <!-- Hyperparameters -->
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <span>⚙️</span> Hyperparameters
+                </h2>
+                
+                <!-- Alpha -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <label class="font-bold text-slate-200">Alpha (Learning Rate)</label>
+                        <span id="alpha-val" class="font-mono text-cyan-400">0.8</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mb-2 leading-tight">Controls how much new information overrides old information. 0 means no learning, 1 means only considering the most recent information.</p>
+                    <input type="range" id="alpha-slider" min="0.01" max="1" step="0.01" value="0.8" class="w-full accent-cyan-500">
+                </div>
 
-<div class="main-content">
-  <!-- Game Canvas -->
-  <div class="card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Breakout Environment</div>
-        <div class="card-subtitle">Agent plays in real-time</div>
-      </div>
-    </div>
-    <div class="card-body">
-      <div class="game-canvas-wrap">
-        <canvas id="gameCanvas" width="320" height="400"></canvas>
-      </div>
-    </div>
-  </div>
+                <!-- Gamma -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <label class="font-bold text-slate-200">Gamma (Discount Factor)</label>
+                        <span id="gamma-val" class="font-mono text-cyan-400">0.95</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mb-2 leading-tight">Measures the importance of future rewards. Near 0 makes the agent opportunistic, while closer to 1 makes it strive for long-term high rewards.</p>
+                    <input type="range" id="gamma-slider" min="0.1" max="0.99" step="0.01" value="0.95" class="w-full accent-cyan-500">
+                </div>
 
-  <!-- Neural Network Visualization -->
-  <div class="card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Neural Network</div>
-        <div class="card-subtitle" id="nnSubtitle">10 &rarr; 64 &rarr; 32 &rarr; 3 | Weights update live</div>
-      </div>
-    </div>
-    <div class="card-body" style="position:relative;">
-      <canvas id="nnCanvas" width="520" height="400"></canvas>
-      <div class="nn-tooltip" id="nnTooltip"></div>
-      <div class="nn-legend">
-        <div class="nn-legend-item">
-          <div class="nn-legend-swatch" style="background:#ef4444"></div>
-          Positive weight
-        </div>
-        <div class="nn-legend-item">
-          <div class="nn-legend-swatch" style="background:#3b82f6"></div>
-          Negative weight
-        </div>
-        <div class="nn-legend-item">
-          <div class="nn-legend-swatch" style="background:#22c55e; height:8px; border-radius:50%; width:8px;"></div>
-          High activation
-        </div>
-      </div>
-    </div>
-  </div>
+                <!-- Environment Toggle -->
+                <div class="mb-2">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="font-bold text-slate-200 text-sm">Slippery Ice (Stochasticity)</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="slippery-toggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-tight">When enabled, the agent has a 66% chance to slide perpendicular to its intended direction, forcing it to find safer paths.</p>
+                </div>
 
-  <!-- Training Curve Chart -->
-  <div class="card chart-container">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Training Curve</div>
-        <div class="card-subtitle">Bricks cleared per episode | Orange = raw | Blue = avg (last 100)</div>
-      </div>
-    </div>
-    <div class="card-body">
-      <canvas id="chartCanvas"></canvas>
-    </div>
-  </div>
+                <!-- Step Penalty Toggle -->
+                <div class="mb-2 mt-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="font-bold text-slate-200 text-sm">Step Penalty</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="penalty-toggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-tight">Applies a negative reward (-0.01) for every non-goal step, teaching the agent to prioritize the shortest path and stop bumping into walls.</p>
+                </div>
+            </div>
 
-  <!-- Info Panel -->
-  <div class="card info-panel">
-    <div class="card-body">
-      <details>
-        <summary>How DQN Works (click to expand)</summary>
+            <hr class="border-slate-700">
 
-        <div class="info-section" style="margin-top: 14px;">
-          <h3><span class="section-icon">&#129504;</span> What is a DQN?</h3>
-          <p>
-            A <strong>Deep Q-Network</strong> is a neural network that learns to play games by trial and error.
-            Rather than being told the rules, the agent repeatedly plays, observes what happens, and gradually
-            figures out which actions lead to the highest long-term score. It&rsquo;s the same family of
-            algorithms DeepMind used to master Atari games in 2015.
-          </p>
-          <p>
-            In classic Q-learning you&rsquo;d store a table of &ldquo;how good is each action in each state?&rdquo;.
-            That works for small problems, but Breakout has far too many possible states. A neural network replaces
-            the table &mdash; it takes in a description of the current game state and outputs a Q-value for each
-            possible action (left, stay, right). The agent then picks the action with the highest predicted value.
-          </p>
+            <!-- Stats -->
+            <div>
+                <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <span>📊</span> Statistics
+                </h2>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700 flex flex-col justify-between">
+                        <div class="text-slate-400 text-[10px] uppercase tracking-wider font-bold mb-1">Episode</div>
+                        <div id="stat-episode" class="text-xl font-mono text-white">0</div>
+                        <div class="text-[9px] text-slate-500 mt-1 leading-tight">Total runs attempted.</div>
+                    </div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700 flex flex-col justify-between">
+                        <div class="text-slate-400 text-[10px] uppercase tracking-wider font-bold mb-1">Epsilon (Exploration)</div>
+                        <div id="stat-epsilon" class="text-xl font-mono text-white">1.00</div>
+                        <div class="text-[9px] text-slate-500 mt-1 leading-tight">Chance to take a random action. Decays over time.</div>
+                    </div>
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700 col-span-2">
+                        <div class="text-slate-400 text-xs uppercase tracking-wider">Success Rate (Last 100)</div>
+                        <div class="flex items-end gap-2">
+                            <div id="stat-success" class="text-2xl font-mono text-emerald-400">0%</div>
+                            <div class="text-xs text-slate-500 mb-1">moving avg</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
-        <div class="info-section">
-          <h3><span class="section-icon">&#9881;&#65039;</span> How Training Works</h3>
-          <p>Each training step follows a cycle:</p>
-          <ol>
-            <li><strong>Observe</strong> &mdash; The agent reads 10 features from the game: paddle position,
-                ball position and velocity, a <em>predicted landing position</em> (where the ball will cross the
-                paddle line, accounting for wall bounces), and the distribution of remaining bricks.</li>
-            <li><strong>Choose an action</strong> &mdash; Early on, the agent mostly picks random actions
-                (exploration). As epsilon decays, it increasingly trusts its own Q-value predictions (exploitation).</li>
-            <li><strong>Collect the reward</strong> &mdash; Clearing a brick is worth +3, catching the ball +1,
-                losing the ball &minus;5. Small shaping bonuses reward moving <em>towards</em> where the ball
-                will land, giving the network a clearer learning signal.</li>
-            <li><strong>Store the experience</strong> &mdash; The (state, action, reward, next state) tuple is
-                saved to a replay buffer. During training, random batches are drawn from this buffer &mdash;
-                this breaks the correlation between consecutive frames and stabilises learning.</li>
-            <li><strong>Update the network</strong> &mdash; Using the Bellman equation
-                <code>Q = r + &gamma; &middot; max Q(s&prime;)</code>, the network&rsquo;s weights are adjusted
-                so its predictions better match the actual returns. A separate <em>target network</em> (a
-                frozen copy, refreshed periodically) provides stable targets to train against.</li>
-          </ol>
-          <div class="tip-box">
-            <strong>Watch it happen:</strong> The neural network panel on the right shows weights as coloured
-            lines (red = positive, blue = negative) and node brightness indicates activation strength. You&rsquo;ll
-            see the connections sharpen as training progresses. Use <strong>Watch Game</strong> at any point to
-            see the agent play at human speed.
-          </div>
+        <!-- Middle Panel: Environment Grid (4 columns) -->
+        <div class="lg:col-span-4 flex flex-col items-center">
+            <h2 class="text-xl font-bold text-white mb-4">Environment</h2>
+            <div id="env-grid" class="grid grid-cols-4 gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-xl">
+                <!-- Grid cells generated by JS -->
+            </div>
+            
+            <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm text-slate-300 bg-slate-800/80 p-4 rounded-xl border border-slate-700/50 shadow-inner">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-sky-200 border-b-4 border-sky-400 flex items-center justify-center relative shadow-sm"><div class="absolute top-1 left-1 text-[7px] font-bold text-sky-600">START</div></div> <span class="font-medium">Start</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-sky-200 border-b-4 border-sky-400 shadow-sm"></div> <span class="font-medium">Safe Ice</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-sky-200 border-b-4 border-sky-400 p-1 shadow-sm"><svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-sm"><path d="M 10 50 Q 20 10 50 15 Q 85 10 90 50 Q 85 90 50 85 Q 15 85 10 50 Z" fill="#3b82f6" class="opacity-30" /><path d="M 20 50 Q 25 25 50 25 Q 75 25 80 50 Q 75 75 50 75 Q 25 75 20 50 Z" fill="#1e3a8a" /><path d="M 30 50 Q 35 35 50 35 Q 65 35 70 50 Q 65 65 50 65 Q 35 65 30 50 Z" fill="#0f172a" class="opacity-90" /></svg></div> <span class="font-medium">Hole</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-sky-200 border-b-4 border-sky-400 p-1 shadow-sm"><svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-xl"><rect x="25" y="45" width="50" height="40" rx="4" fill="#ef4444" /><rect x="20" y="35" width="60" height="15" rx="3" fill="#ef4444" /><rect x="20" y="47" width="60" height="3" fill="#b91c1c" /><rect x="42" y="35" width="16" height="50" fill="#fef08a" /><path d="M 50 35 Q 30 15 40 30 Z" fill="#fde047" stroke="#ca8a04" stroke-width="2"/><path d="M 50 35 Q 70 15 60 30 Z" fill="#fde047" stroke="#ca8a04" stroke-width="2"/><circle cx="50" cy="35" r="5" fill="#eab308" /></svg></div> <span class="font-medium">Goal</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 flex items-center justify-center drop-shadow-lg"><svg viewBox="0 0 100 100" class="w-full h-full pt-1"><ellipse cx="30" cy="85" rx="12" ry="6" fill="#f59e0b" /><ellipse cx="70" cy="85" rx="12" ry="6" fill="#f59e0b" /><path d="M 20 60 Q 20 20 50 20 Q 80 20 80 60 Q 80 90 50 90 Q 20 90 20 60 Z" fill="#1e293b" /><path d="M 30 65 Q 30 35 50 35 Q 70 35 70 65 Q 70 85 50 85 Q 30 85 30 65 Z" fill="#f8fafc" /><circle cx="40" cy="45" r="5" fill="#f8fafc" /><circle cx="40" cy="45" r="2.5" fill="#0f172a" /><circle cx="60" cy="45" r="5" fill="#f8fafc" /><circle cx="60" cy="45" r="2.5" fill="#0f172a" /><circle cx="32" cy="52" r="4" fill="#fca5a5" class="opacity-60" /><circle cx="68" cy="52" r="4" fill="#fca5a5" class="opacity-60" /><path d="M 45 50 L 55 50 L 50 58 Z" fill="#f59e0b" /><path d="M 22 55 Q 5 65 15 75 Q 22 65 25 60 Z" fill="#1e293b" /><path d="M 78 55 Q 95 65 85 75 Q 78 65 75 60 Z" fill="#1e293b" /></svg></div> <span class="font-medium">Agent</span>
+                </div>
+            </div>
+
+            <!-- Training Log -->
+            <div class="mt-6 w-full max-w-lg">
+                <h3 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><span>📝</span> Episode Log</h3>
+                <div id="episode-logs" class="bg-slate-800/80 p-3 rounded-xl border border-slate-700 shadow-inner h-40 overflow-y-auto font-mono text-xs flex flex-col gap-1 w-full">
+                    <!-- Logs generated by JS -->
+                </div>
+            </div>
         </div>
 
-        <div class="info-section">
-          <h3><span class="section-icon">&#127919;</span> Tips for Experimenting</h3>
-          <p>
-            Hover over any hyperparameter slider above for a detailed explanation. Here are some experiments
-            worth trying:
-          </p>
-          <ol>
-            <li><strong>Speed up exploration</strong> &mdash; Lower the epsilon decay (e.g. 0.990) so the agent
-                commits to its learnt policy sooner. It will learn faster, but may miss strategies it hasn&rsquo;t
-                discovered yet.</li>
-            <li><strong>Slow down learning</strong> &mdash; Drop the learning rate to 0.001. Training takes
-                longer but the agent is less likely to &ldquo;unlearn&rdquo; good behaviours it already found.</li>
-            <li><strong>Make it forgetful</strong> &mdash; Shrink the replay buffer to 2,000. The agent trains
-                only on very recent experiences, which can speed up adaptation but makes training more volatile.</li>
-            <li><strong>Destabilise on purpose</strong> &mdash; Set the target update interval very low (50 steps).
-                You&rsquo;ll see Q-values start oscillating &mdash; this is exactly why DQN needs a stable target
-                network.</li>
-          </ol>
-          <div class="tip-box">
-            <strong>Reset and compare:</strong> After each experiment, hit <strong>Reset</strong> and train with
-            the default settings side by side. Comparing the training curves is the best way to build intuition
-            for what each hyperparameter does.
-          </div>
+        <!-- Right Panel: Q-Table Heatmap (5 columns) -->
+        <div class="lg:col-span-5 flex flex-col items-center">
+            <h2 class="text-xl font-bold text-white mb-4">Q-Value Heatmap</h2>
+            <div id="q-grid" class="grid grid-cols-4 gap-2 bg-slate-800 p-3 rounded-xl border border-slate-700 shadow-xl w-full max-w-lg aspect-square">
+                <!-- Q-table cells generated by JS -->
+            </div>
+            <p class="mt-4 text-xs text-slate-400 text-center max-w-sm">
+                Each square represents a state. The inner cross blocks represent actions (Top=Up, Bottom=Down, Left=Left, Right=Right). 
+                <span class="text-emerald-400 font-bold">Green</span> indicates a higher expected reward.
+            </p>
+
+            <!-- Training Progress Chart -->
+            <div class="mt-6 w-full max-w-lg bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl flex flex-col">
+                <h3 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><span>📈</span> Training Progress</h3>
+                <div class="w-full h-40 relative">
+                    <canvas id="progress-chart"></canvas>
+                </div>
+            </div>
         </div>
 
-      </details>
     </div>
-  </div>
-</div>
 
-<script>
-// ========================================================================
-// CONSTANTS
-// ========================================================================
-const GW = 320, GH = 400;         // Game canvas size
-const BRICK_ROWS = 5, BRICK_COLS = 8;
-const BRICK_GAP = 4;
-const BRICK_W = (GW - (BRICK_COLS + 1) * BRICK_GAP) / BRICK_COLS;
-const BRICK_H = 14;
-const BRICK_TOP = 120;
-const PADDLE_W = 80, PADDLE_H = 8;
-const PADDLE_Y = GH - 30;
-const BALL_R = 4;
-const PADDLE_SPEED = 10;
-const BALL_SPEED = 4;
-const MAX_STEPS_PER_EPISODE = 2000;
-const NUM_FEATURES = 10;
-const NUM_ACTIONS = 3;
-const ACTION_NAMES = ['Left', 'Stay', 'Right'];
-const BRICK_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
+    <!-- How Q-Learning Works Footer -->
+    <div class="max-w-7xl mx-auto w-full mt-8 mb-12">
+        <details class="bg-slate-800 border border-slate-700 rounded-2xl p-6 cursor-pointer shadow-xl group">
+            <summary class="font-extrabold text-white text-xl select-none flex items-center gap-3">
+                <span>🧠</span> How Q-Learning Works 
+                <span class="text-sm font-normal text-slate-400 ml-auto group-open:hidden">(click to expand)</span>
+                <span class="text-sm font-normal text-slate-400 ml-auto hidden group-open:block">(click to collapse)</span>
+            </summary>
+            <div class="mt-6 text-slate-300 space-y-4 leading-relaxed bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
+                <p><strong class="text-cyan-400">Q-Table:</strong> A table storing how "good" each action is from each state. Starts at zero (knows nothing).</p>
+                <p><strong class="text-cyan-400">Exploration vs Exploitation:</strong> Early on, the agent picks random actions (exploration). Over time, it increasingly picks the best known action (exploitation).</p>
+                <p><strong class="text-cyan-400">Update Rule:</strong> <code class="bg-slate-950 text-emerald-400 px-2 py-1 rounded font-mono text-sm ml-1">Q(s,a) = (1-&alpha;)Q(s,a) + &alpha;(r + &gamma; max Q(s',a'))</code></p>
+                <p><strong class="text-cyan-400">Policy Arrows:</strong> The colors on the grid show the best action per state based on current Q-values.</p>
+                <p><strong class="text-cyan-400">Goal:</strong> Navigate from <strong class="text-white">S</strong> (top-left) to <strong class="text-white">G</strong> (bottom-right) without falling into <strong class="text-white">H</strong> (holes).</p>
+                <div class="mt-4 pt-4 border-t border-slate-700/50">
+                    <p class="text-emerald-400 font-semibold flex items-center gap-2"><span>💡</span> Tips: Try changing one parameter at a time and observe how it affects learning!</p>
+                </div>
+            </div>
+        </details>
+    </div>
 
-const FEATURE_NAMES = ['Pad X', 'Ball X', 'Ball Y', 'VelX', 'VelY',
-  'Land X', 'Pad-Land', 'Dist', 'BrkLeft', 'BrkRight'];
+    <!-- Application Logic -->
+    <script>
+        // --- 1. Environment Definition ---
+        // 4x4 FrozenLake grid: S=Start, F=Frozen, H=Hole, G=Goal
+        const envMap = [
+            'S', 'F', 'F', 'F',
+            'F', 'H', 'F', 'H',
+            'F', 'F', 'F', 'H',
+            'H', 'F', 'F', 'G'
+        ];
+        
+        const ACTIONS = { LEFT: 0, DOWN: 1, RIGHT: 2, UP: 3 };
+        const NUM_STATES = 16;
+        const NUM_ACTIONS = 4;
 
-const FEATURE_DESCS = [
-  'Paddle horizontal position. 0 = left edge, 1 = right edge.',
-  'Ball horizontal position. 0 = left edge, 1 = right edge.',
-  'Ball vertical position. 0 = top of screen, 1 = bottom.',
-  'Ball horizontal velocity. 0 = moving left, 0.5 = still, 1 = moving right.',
-  'Ball vertical velocity. 0 = moving up, 0.5 = still, 1 = moving down.',
-  'Predicted landing X \u2014 where the ball will cross the paddle line, accounting for wall bounces. This is the key feature the agent uses to position itself.',
-  'Offset between paddle and predicted landing. 0.5 = perfectly aligned. Below 0.5 = ball landing to the right of paddle.',
-  'Vertical distance from ball to paddle. 1 = ball at top, 0 = ball at paddle height. Tells the agent how much time it has.',
-  'Fraction of remaining bricks to the left of the ball. Helps the agent understand where bricks are concentrated.',
-  'Fraction of remaining bricks to the right of the ball. Together with BrkLeft, gives a sense of brick distribution.',
-];
+        // --- 2. State & RL Variables ---
+        let qTable = Array(NUM_STATES).fill(0).map(() => Array(NUM_ACTIONS).fill(0));
+        let currentState = 0;
+        let isPlaying = false;
+        let episodeCount = 0;
+        let recentResults = []; // Stores 1 for win, 0 for loss to calculate success rate
+        
+        // Logs & Charts
+        let currentEpisodeLog = [];
+        const actionSymbols = ['⬅️', '⬇️', '➡️', '⬆️'];
+        let chartInstance = null;
+        let chartLabels = [];
+        let chartData = [];
+        
+        // Dynamic Hyperparameters
+        let alpha = 0.8;      // Learning rate
+        let gamma = 0.95;     // Discount factor
+        let epsilon = 1.0;    // Exploration rate
+        const minEpsilon = 0.01;
+        const epsilonDecay = 0.995;
+        let isSlippery = false; 
+        let useStepPenalty = false;
+        
+        let loopTimeout = null;
 
-const ACTION_DESCS = [
-  'Move the paddle to the left.',
-  'Keep the paddle still.',
-  'Move the paddle to the right.',
-];
+        // --- 3. DOM Elements ---
+        const envGridEl = document.getElementById('env-grid');
+        const qGridEl = document.getElementById('q-grid');
+        
+        const btnPlay = document.getElementById('btn-play');
+        const btnStep = document.getElementById('btn-step');
+        const btnReset = document.getElementById('btn-reset');
+        
+        const speedSlider = document.getElementById('speed-slider');
+        const alphaSlider = document.getElementById('alpha-slider');
+        const gammaSlider = document.getElementById('gamma-slider');
+        const slipperyToggle = document.getElementById('slippery-toggle');
+        const penaltyToggle = document.getElementById('penalty-toggle');
+        
+        const statEpisode = document.getElementById('stat-episode');
+        const statEpsilon = document.getElementById('stat-epsilon');
+        const statSuccess = document.getElementById('stat-success');
 
-// nodePos is stored globally so the tooltip mousemove handler can read it
-let nnNodePos = [];
+        // --- 4. Initialization & UI Setup ---
+        
+        // Define cute SVGs for the environment
+        const svgs = {
+            agent: `<svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-xl transform transition-transform hover:scale-110"><ellipse cx="30" cy="85" rx="12" ry="6" fill="#f59e0b" /><ellipse cx="70" cy="85" rx="12" ry="6" fill="#f59e0b" /><path d="M 20 60 Q 20 20 50 20 Q 80 20 80 60 Q 80 90 50 90 Q 20 90 20 60 Z" fill="#1e293b" /><path d="M 30 65 Q 30 35 50 35 Q 70 35 70 65 Q 70 85 50 85 Q 30 85 30 65 Z" fill="#f8fafc" /><circle cx="40" cy="45" r="5" fill="#f8fafc" /><circle cx="40" cy="45" r="2.5" fill="#0f172a" /><circle cx="60" cy="45" r="5" fill="#f8fafc" /><circle cx="60" cy="45" r="2.5" fill="#0f172a" /><circle cx="32" cy="52" r="4" fill="#fca5a5" class="opacity-60" /><circle cx="68" cy="52" r="4" fill="#fca5a5" class="opacity-60" /><path d="M 45 50 L 55 50 L 50 58 Z" fill="#f59e0b" /><path d="M 22 55 Q 5 65 15 75 Q 22 65 25 60 Z" fill="#1e293b" /><path d="M 78 55 Q 95 65 85 75 Q 78 65 75 60 Z" fill="#1e293b" /></svg>`,
+            deadAgent: `<svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-xl"><path d="M 10 50 Q 20 10 50 15 Q 85 10 90 50 Q 85 90 50 85 Q 15 85 10 50 Z" fill="#3b82f6" class="opacity-30" /><path d="M 20 50 Q 25 25 50 25 Q 75 25 80 50 Q 75 75 50 75 Q 25 75 20 50 Z" fill="#1e3a8a" /><path d="M 30 50 Q 35 35 50 35 Q 65 35 70 50 Q 65 65 50 65 Q 35 65 30 50 Z" fill="#0f172a" class="opacity-90" /><path d="M 25 25 L 15 15 M 75 25 L 85 15 M 25 75 L 15 85 M 75 75 L 85 85 M 50 20 L 50 5 M 50 80 L 50 95 M 20 50 L 5 50 M 80 50 L 95 50" stroke="#bae6fd" stroke-width="2" stroke-linecap="round"/><path d="M 35 65 Q 35 40 50 40 Q 65 40 65 65 Z" fill="#1e293b" /><path d="M 40 45 Q 40 40 50 40 Q 60 40 60 45 Z" fill="#f8fafc" /><circle cx="45" cy="45" r="3" fill="#f8fafc" /><circle cx="55" cy="45" r="3" fill="#f8fafc" /><path d="M 43 43 L 47 47 M 47 43 L 43 47 M 53 43 L 57 47 M 57 43 L 53 47" stroke="#0f172a" stroke-width="1.5" /><circle cx="30" cy="65" r="4" fill="#60a5fa" /><circle cx="70" cy="65" r="4" fill="#60a5fa" /><circle cx="40" cy="70" r="2" fill="#60a5fa" /><circle cx="60" cy="70" r="2" fill="#60a5fa" /></svg>`,
+            hole: `<svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-sm"><path d="M 10 50 Q 20 10 50 15 Q 85 10 90 50 Q 85 90 50 85 Q 15 85 10 50 Z" fill="#3b82f6" class="opacity-30" /><path d="M 20 50 Q 25 25 50 25 Q 75 25 80 50 Q 75 75 50 75 Q 25 75 20 50 Z" fill="#1e3a8a" /><path d="M 30 50 Q 35 35 50 35 Q 65 35 70 50 Q 65 65 50 65 Q 35 65 30 50 Z" fill="#0f172a" class="opacity-90" /></svg>`,
+            goal: `<svg viewBox="0 0 100 100" class="w-3/4 h-3/4 m-auto drop-shadow-xl"><rect x="25" y="45" width="50" height="40" rx="4" fill="#ef4444" /><rect x="20" y="35" width="60" height="15" rx="3" fill="#ef4444" /><rect x="20" y="47" width="60" height="3" fill="#b91c1c" /><rect x="42" y="35" width="16" height="50" fill="#fef08a" /><path d="M 50 35 Q 30 15 40 30 Z" fill="#fde047" stroke="#ca8a04" stroke-width="2"/><path d="M 50 35 Q 70 15 60 30 Z" fill="#fde047" stroke="#ca8a04" stroke-width="2"/><circle cx="50" cy="35" r="5" fill="#eab308" /></svg>`
+        };
 
-const SPEED_LEVELS = [
-  { label: '1x',   mode: 'frame', stepsPerTick: 1,    delay: 50  },
-  { label: '2x',   mode: 'frame', stepsPerTick: 1,    delay: 25  },
-  { label: '5x',   mode: 'frame', stepsPerTick: 3,    delay: 16  },
-  { label: '10x',  mode: 'batch', stepsPerTick: 20,   delay: 16  },
-  { label: '50x',  mode: 'batch', stepsPerTick: 100,  delay: 16  },
-  { label: '100x', mode: 'batch', stepsPerTick: 300,  delay: 16  },
-  { label: '500x', mode: 'batch', stepsPerTick: 1000, delay: 16  },
-  { label: 'Max',  mode: 'batch', stepsPerTick: 3000, delay: 0   },
-];
-
-// ========================================================================
-// GAME ENGINE
-// ========================================================================
-function gameReset() {
-  const bricks = [];
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    bricks[r] = [];
-    for (let c = 0; c < BRICK_COLS; c++) bricks[r][c] = true;
-  }
-  const px = GW / 2;
-  const bx = GW / 2;
-  const by = PADDLE_Y - 20;
-  const angle = (Math.random() - 0.5) * Math.PI * 0.6 - Math.PI / 2;
-  return {
-    paddleX: px,
-    ballX: bx, ballY: by,
-    ballVX: Math.cos(angle) * BALL_SPEED,
-    ballVY: Math.sin(angle) * BALL_SPEED,
-    bricks: bricks,
-    score: 0,
-    bricksRemaining: BRICK_ROWS * BRICK_COLS,
-    done: false, won: false,
-    steps: 0
-  };
-}
-
-function gameStep(gs, action) {
-  if (gs.done) return { reward: 0, done: true };
-
-  // Measure distance to landing BEFORE moving paddle
-  const landXBefore = predictLandingX(gs);
-  const distBefore = Math.abs(landXBefore - gs.paddleX);
-
-  // Move paddle
-  const move = (action - 1) * PADDLE_SPEED;
-  gs.paddleX = Math.max(PADDLE_W / 2, Math.min(GW - PADDLE_W / 2, gs.paddleX + move));
-
-  // Move ball
-  gs.ballX += gs.ballVX;
-  gs.ballY += gs.ballVY;
-
-  let reward = 0;
-
-  // Action-dependent: reward moving toward ball's predicted landing
-  const distAfter = Math.abs(predictLandingX(gs) - gs.paddleX);
-  if (distBefore > 5) { // Only shape when not already aligned
-    if (distAfter < distBefore) reward += 0.1;    // moved closer
-    else if (distAfter > distBefore + 2) reward -= 0.05; // moved away
-  }
-
-  // Wall collisions
-  if (gs.ballX - BALL_R <= 0) {
-    gs.ballX = BALL_R;
-    gs.ballVX = Math.abs(gs.ballVX);
-  }
-  if (gs.ballX + BALL_R >= GW) {
-    gs.ballX = GW - BALL_R;
-    gs.ballVX = -Math.abs(gs.ballVX);
-  }
-  if (gs.ballY - BALL_R <= 0) {
-    gs.ballY = BALL_R;
-    gs.ballVY = Math.abs(gs.ballVY);
-  }
-
-  // Paddle collision
-  if (gs.ballVY > 0 &&
-      gs.ballY + BALL_R >= PADDLE_Y &&
-      gs.ballY + BALL_R <= PADDLE_Y + PADDLE_H + 4 &&
-      gs.ballX >= gs.paddleX - PADDLE_W / 2 - BALL_R &&
-      gs.ballX <= gs.paddleX + PADDLE_W / 2 + BALL_R) {
-    gs.ballY = PADDLE_Y - BALL_R;
-    // Angle depends on hit position
-    const hitPos = (gs.ballX - gs.paddleX) / (PADDLE_W / 2); // -1 to 1
-    const angle = hitPos * Math.PI * 0.35 - Math.PI / 2;
-    const speed = Math.sqrt(gs.ballVX * gs.ballVX + gs.ballVY * gs.ballVY);
-    gs.ballVX = Math.cos(angle) * speed;
-    gs.ballVY = Math.sin(angle) * speed;
-    if (gs.ballVY > -1) gs.ballVY = -1; // Ensure ball goes up
-    reward += 1.0; // Strong reward for keeping ball alive
-  }
-
-  // Brick collisions
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    for (let c = 0; c < BRICK_COLS; c++) {
-      if (!gs.bricks[r][c]) continue;
-      const bx = BRICK_GAP + c * (BRICK_W + BRICK_GAP);
-      const by = BRICK_TOP + r * (BRICK_H + BRICK_GAP);
-      if (gs.ballX + BALL_R > bx && gs.ballX - BALL_R < bx + BRICK_W &&
-          gs.ballY + BALL_R > by && gs.ballY - BALL_R < by + BRICK_H) {
-        gs.bricks[r][c] = false;
-        gs.bricksRemaining--;
-        gs.score++;
-        reward += 3;
-
-        // Determine bounce direction
-        const overlapL = (gs.ballX + BALL_R) - bx;
-        const overlapR = (bx + BRICK_W) - (gs.ballX - BALL_R);
-        const overlapT = (gs.ballY + BALL_R) - by;
-        const overlapB = (by + BRICK_H) - (gs.ballY - BALL_R);
-        const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
-        if (minOverlap === overlapT || minOverlap === overlapB) {
-          gs.ballVY = -gs.ballVY;
-        } else {
-          gs.ballVX = -gs.ballVX;
+        function initChart() {
+            const ctx = document.getElementById('progress-chart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'Success Rate (%)',
+                        data: chartData,
+                        borderColor: '#10b981', // emerald-500
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        y: { 
+                            min: 0, 
+                            max: 100, 
+                            ticks: { color: '#94a3b8' }, 
+                            grid: { color: '#334155' },
+                            title: {
+                                display: true,
+                                text: 'Success Rate (%)',
+                                color: '#94a3b8',
+                                font: { size: 10, weight: 'bold', family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }
+                            }
+                        },
+                        x: { 
+                            min: 0, 
+                            ticks: { color: '#94a3b8', maxTicksLimit: 10 }, 
+                            grid: { color: '#334155' },
+                            title: {
+                                display: true,
+                                text: 'Episodes',
+                                color: '#94a3b8',
+                                font: { size: 10, weight: 'bold', family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }
+                            }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
         }
-        break; // One brick per frame
-      }
-    }
-  }
 
-  // Ball falls below
-  if (gs.ballY > GH + BALL_R) {
-    gs.done = true;
-    reward = -5;
-  }
+        function initGrid() {
+            envGridEl.innerHTML = '';
+            qGridEl.innerHTML = '';
 
-  // All bricks cleared
-  if (gs.bricksRemaining <= 0) {
-    gs.done = true;
-    gs.won = true;
-    reward += 5;
-  }
+            for (let i = 0; i < NUM_STATES; i++) {
+                // Build Environment Map Visuals
+                const cell = document.createElement('div');
+                cell.className = 'w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-xl bg-sky-200 border-b-4 border-sky-400 relative shadow-md transition-all duration-200';
+                
+                let iconHTML = '';
+                if (envMap[i] === 'S') iconHTML = `<div class="absolute top-1 left-1.5 text-[10px] font-bold text-sky-600 tracking-wider">START</div>`;
+                if (envMap[i] === 'H') iconHTML = svgs.hole;
+                if (envMap[i] === 'G') iconHTML = svgs.goal;
+                
+                const bgIcon = document.createElement('div');
+                bgIcon.innerHTML = iconHTML;
+                bgIcon.className = 'absolute inset-0 flex items-center justify-center p-1'; 
+                cell.appendChild(bgIcon);
 
-  gs.steps++;
-  if (gs.steps >= MAX_STEPS_PER_EPISODE) {
-    gs.done = true;
-  }
+                // Add Agent container
+                const agentIcon = document.createElement('div');
+                agentIcon.id = `agent-${i}`;
+                agentIcon.innerHTML = svgs.agent;
+                agentIcon.className = `absolute inset-0 flex items-center justify-center p-1.5 transition-opacity duration-75 ${i === currentState ? 'opacity-100 agent-pop z-10' : 'opacity-0 z-0'}`;
+                cell.appendChild(agentIcon);
 
-  return { reward, done: gs.done };
-}
+                envGridEl.appendChild(cell);
 
-// Predict where the ball will cross PADDLE_Y (simple ray cast with wall bounces)
-function predictLandingX(gs) {
-  if (gs.ballVY <= 0) return gs.ballX; // ball going up, predict current X
-  let bx = gs.ballX, by = gs.ballY, vx = gs.ballVX, vy = gs.ballVY;
-  // Simulate up to 200 steps to find landing
-  for (let i = 0; i < 200; i++) {
-    bx += vx; by += vy;
-    if (bx <= BALL_R) { bx = BALL_R; vx = Math.abs(vx); }
-    if (bx >= GW - BALL_R) { bx = GW - BALL_R; vx = -Math.abs(vx); }
-    if (by <= BALL_R) { by = BALL_R; vy = Math.abs(vy); }
-    if (by >= PADDLE_Y) return bx;
-  }
-  return bx;
-}
-
-function gameGetFeatures(gs) {
-  const f = new Float64Array(NUM_FEATURES);
-  f[0] = gs.paddleX / GW;                                    // Paddle position
-  f[1] = gs.ballX / GW;                                      // Ball X
-  f[2] = gs.ballY / GH;                                      // Ball Y
-  f[3] = (gs.ballVX / BALL_SPEED + 1) / 2;                   // Ball vel X (0-1)
-  f[4] = (gs.ballVY / BALL_SPEED + 1) / 2;                   // Ball vel Y (0-1)
-  const landX = predictLandingX(gs);
-  f[5] = landX / GW;                                         // Predicted landing X
-  f[6] = (gs.paddleX - landX) / GW + 0.5;                    // Paddle-to-landing offset
-  f[7] = Math.max(0, (PADDLE_Y - gs.ballY) / GH);            // Distance to paddle
-  // Brick density left vs right of ball
-  let bricksLeft = 0, bricksRight = 0;
-  const midCol = Math.floor(gs.ballX / (GW / BRICK_COLS));
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    for (let c = 0; c < BRICK_COLS; c++) {
-      if (gs.bricks[r][c]) {
-        if (c <= midCol) bricksLeft++; else bricksRight++;
-      }
-    }
-  }
-  const totalBricks = bricksLeft + bricksRight || 1;
-  f[8] = bricksLeft / totalBricks;                            // Brick density left
-  f[9] = bricksRight / totalBricks;                           // Brick density right
-  return f;
-}
-
-// ========================================================================
-// NEURAL NETWORK (Pure JS)
-// ========================================================================
-function randn() {
-  let u = 0, v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-}
-
-function createNetwork(sizes) {
-  const net = { sizes: sizes, weights: [], biases: [], activations: null };
-  for (let i = 1; i < sizes.length; i++) {
-    const fanIn = sizes[i - 1], fanOut = sizes[i];
-    const scale = Math.sqrt(2.0 / fanIn);
-    const w = new Float64Array(fanIn * fanOut);
-    for (let j = 0; j < w.length; j++) w[j] = randn() * scale;
-    net.weights.push(w);
-    net.biases.push(new Float64Array(fanOut));
-  }
-  return net;
-}
-
-function forward(net, input) {
-  const acts = [Float64Array.from(input)];
-  let cur = acts[0];
-  for (let l = 0; l < net.weights.length; l++) {
-    const inN = net.sizes[l], outN = net.sizes[l + 1];
-    const w = net.weights[l], b = net.biases[l];
-    const out = new Float64Array(outN);
-    for (let o = 0; o < outN; o++) {
-      let sum = b[o];
-      for (let i = 0; i < inN; i++) {
-        sum += cur[i] * w[i * outN + o];
-      }
-      // ReLU for hidden, linear for output
-      out[o] = (l < net.weights.length - 1) ? Math.max(0, sum) : sum;
-    }
-    acts.push(out);
-    cur = out;
-  }
-  net.activations = acts;
-  return cur;
-}
-
-function trainBatch(net, batch, lr, gamma, targetNet) {
-  const nLayers = net.weights.length;
-  // Accumulate gradients
-  const wGrads = net.weights.map(w => new Float64Array(w.length));
-  const bGrads = net.biases.map(b => new Float64Array(b.length));
-
-  for (let s = 0; s < batch.length; s++) {
-    const exp = batch[s];
-    // Forward pass on current state
-    const qVals = forward(net, exp.state);
-    const acts = net.activations.map(a => Float64Array.from(a));
-
-    // Compute target
-    const targetQ = Float64Array.from(qVals);
-    if (exp.done) {
-      targetQ[exp.action] = exp.reward;
-    } else {
-      const nextQ = forward(targetNet, exp.nextState);
-      let maxNext = nextQ[0];
-      for (let a = 1; a < nextQ.length; a++) if (nextQ[a] > maxNext) maxNext = nextQ[a];
-      targetQ[exp.action] = exp.reward + gamma * maxNext;
-    }
-
-    // Output error (Huber-like: clip gradient)
-    const outN = net.sizes[nLayers];
-    let delta = new Float64Array(outN);
-    for (let i = 0; i < outN; i++) {
-      const diff = acts[nLayers][i] - targetQ[i];
-      delta[i] = Math.abs(diff) <= 1.0 ? diff : (diff > 0 ? 1.0 : -1.0);
-    }
-
-    // Backprop
-    for (let l = nLayers - 1; l >= 0; l--) {
-      const inN = net.sizes[l], outSize = net.sizes[l + 1];
-      const act = acts[l];
-      for (let o = 0; o < outSize; o++) {
-        bGrads[l][o] += delta[o];
-        for (let i = 0; i < inN; i++) {
-          wGrads[l][i * outSize + o] += act[i] * delta[o];
+                // Build Q-Table Heatmap Visuals using SVG polygons
+                const qCell = document.createElement('div');
+                qCell.className = 'relative w-full h-full aspect-square rounded overflow-hidden border border-slate-700 bg-slate-900';
+                
+                // If it's a hole or goal, mask out terminal states to avoid visual clutter.
+                if (envMap[i] === 'H' || envMap[i] === 'G') {
+                    qCell.innerHTML = `<div class="absolute inset-0 flex items-center justify-center p-4 opacity-40">${iconHTML}</div>`;
+                } else {
+                    qCell.innerHTML = `
+                        <div class="w-full h-full grid grid-cols-3 grid-rows-3 gap-[2px] p-[2px]">
+                            <!-- Row 1: UP -->
+                            <div></div>
+                            <div id="q-bg-${i}-3" class="bg-slate-800 flex items-center justify-center rounded-sm transition-colors duration-150">
+                                <span id="q-text-${i}-3" class="text-[9px] sm:text-[11px] font-mono font-bold text-white opacity-0 transition-opacity">0.00</span>
+                            </div>
+                            <div></div>
+                            
+                            <!-- Row 2: LEFT, CENTER, RIGHT -->
+                            <div id="q-bg-${i}-0" class="bg-slate-800 flex items-center justify-center rounded-sm transition-colors duration-150">
+                                <span id="q-text-${i}-0" class="text-[9px] sm:text-[11px] font-mono font-bold text-white opacity-0 transition-opacity">0.00</span>
+                            </div>
+                            <div class="bg-slate-950 rounded-sm flex items-center justify-center">
+                                <div class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                            </div>
+                            <div id="q-bg-${i}-2" class="bg-slate-800 flex items-center justify-center rounded-sm transition-colors duration-150">
+                                <span id="q-text-${i}-2" class="text-[9px] sm:text-[11px] font-mono font-bold text-white opacity-0 transition-opacity">0.00</span>
+                            </div>
+                            
+                            <!-- Row 3: DOWN -->
+                            <div></div>
+                            <div id="q-bg-${i}-1" class="bg-slate-800 flex items-center justify-center rounded-sm transition-colors duration-150">
+                                <span id="q-text-${i}-1" class="text-[9px] sm:text-[11px] font-mono font-bold text-white opacity-0 transition-opacity">0.00</span>
+                            </div>
+                            <div></div>
+                        </div>
+                    `;
+                }
+                qGridEl.appendChild(qCell);
+            }
         }
-      }
-      if (l > 0) {
-        const prevDelta = new Float64Array(inN);
-        for (let i = 0; i < inN; i++) {
-          let sum = 0;
-          for (let o = 0; o < outSize; o++) {
-            sum += net.weights[l][i * outSize + o] * delta[o];
-          }
-          prevDelta[i] = acts[l][i] > 0 ? sum : 0;
+
+        // --- 5. Rendering Logic ---
+        function updateEnvironmentRender() {
+            for (let i = 0; i < NUM_STATES; i++) {
+                const agent = document.getElementById(`agent-${i}`);
+                if (i === currentState) {
+                    agent.classList.remove('opacity-0', 'z-0');
+                    agent.classList.add('opacity-100', 'z-10');
+                    
+                    // Show dead agent if on a hole
+                    if (envMap[i] === 'H') {
+                        agent.innerHTML = svgs.deadAgent;
+                    } else {
+                        agent.innerHTML = svgs.agent;
+                    }
+
+                    // Retrigger pop animation
+                    agent.classList.remove('agent-pop');
+                    void agent.offsetWidth; // trigger reflow
+                    agent.classList.add('agent-pop');
+                } else {
+                    agent.classList.remove('opacity-100', 'z-10', 'agent-pop');
+                    agent.classList.add('opacity-0', 'z-0');
+                }
+            }
         }
-        delta = prevDelta;
-      }
-    }
-  }
 
-  // Apply gradients
-  const scale = lr / batch.length;
-  for (let l = 0; l < nLayers; l++) {
-    for (let i = 0; i < net.weights[l].length; i++) {
-      // Gradient clipping
-      let g = wGrads[l][i] * scale;
-      if (g > 1) g = 1; if (g < -1) g = -1;
-      net.weights[l][i] -= g;
-    }
-    for (let i = 0; i < net.biases[l].length; i++) {
-      let g = bGrads[l][i] * scale;
-      if (g > 1) g = 1; if (g < -1) g = -1;
-      net.biases[l][i] -= g;
-    }
-  }
-}
-
-function copyNetwork(src) {
-  const dst = createNetwork(src.sizes);
-  for (let l = 0; l < src.weights.length; l++) {
-    dst.weights[l].set(src.weights[l]);
-    dst.biases[l].set(src.biases[l]);
-  }
-  return dst;
-}
-
-function argmax(arr) {
-  let best = 0;
-  for (let i = 1; i < arr.length; i++) if (arr[i] > arr[best]) best = i;
-  return best;
-}
-
-// ========================================================================
-// DQN AGENT STATE
-// ========================================================================
-let policyNet, targetNet;
-let replayBuffer;
-let epsilon;
-let episode, totalSteps;
-let episodeRewards;    // shaped reward (used for training)
-let episodeScores;     // actual brick score (used for chart)
-let currentGame;
-let episodeReward, stepInEpisode;
-let maxScoreAchieved, winsCount;
-let lastAction, lastActionRandom;
-let stepsSinceTargetUpdate;
-let isTraining = false, timerId = null;
-let speedIdx = 0;
-let watchMode = false;
-
-function getParams() {
-  return {
-    lr: parseInt(document.getElementById('paramLR').value) / 10000,
-    gamma: parseInt(document.getElementById('paramGamma').value) / 100,
-    epsStart: parseInt(document.getElementById('paramEpsStart').value) / 100,
-    epsMin: parseInt(document.getElementById('paramEpsMin').value) / 100,
-    epsDecay: parseInt(document.getElementById('paramEpsDecay').value) / 1000,
-    bufferSize: parseInt(document.getElementById('paramBuffer').value) * 1000,
-    batchSize: parseInt(document.getElementById('paramBatch').value) * 8,
-    targetUpdate: parseInt(document.getElementById('paramTarget').value) * 50,
-  };
-}
-
-// ========================================================================
-// PARAMETER SYNCING
-// ========================================================================
-function syncParam(el, spanId, divisor, decimals) {
-  document.getElementById(spanId).textContent = (parseInt(el.value) / divisor).toFixed(decimals);
-}
-
-function syncBuffer() {
-  const v = parseInt(document.getElementById('paramBuffer').value) * 1000;
-  document.getElementById('valBuffer').textContent = v.toLocaleString();
-}
-
-function syncBatch() {
-  const v = parseInt(document.getElementById('paramBatch').value) * 8;
-  document.getElementById('valBatch').textContent = v;
-}
-
-function syncTarget() {
-  const v = parseInt(document.getElementById('paramTarget').value) * 50;
-  document.getElementById('valTarget').textContent = v.toLocaleString();
-}
-
-function updateSpeed() {
-  speedIdx = parseInt(document.getElementById('speedSlider').value);
-  document.getElementById('speedLabel').textContent = SPEED_LEVELS[speedIdx].label;
-}
-
-// ========================================================================
-// STATE INIT
-// ========================================================================
-function initState() {
-  const layerSizes = [NUM_FEATURES, 64, 32, NUM_ACTIONS];
-  policyNet = createNetwork(layerSizes);
-  targetNet = copyNetwork(policyNet);
-  replayBuffer = [];
-  const p = getParams();
-  epsilon = p.epsStart;
-  episode = 0;
-  totalSteps = 0;
-  episodeRewards = [];
-  episodeScores = [];
-  currentGame = gameReset();
-  episodeReward = 0;
-  stepInEpisode = 0;
-  maxScoreAchieved = 0;
-  winsCount = 0;
-  lastAction = 1;
-  lastActionRandom = false;
-  stepsSinceTargetUpdate = 0;
-  watchMode = false;
-}
-
-// ========================================================================
-// ONE TRAINING STEP
-// ========================================================================
-function doOneStep() {
-  if (currentGame.done) {
-    if (episodeReward !== undefined && episode > 0 || stepInEpisode > 0) {
-      episodeRewards.push(episodeReward);
-      episodeScores.push(currentGame.score);
-      if (currentGame.won) winsCount++;
-      maxScoreAchieved = Math.max(maxScoreAchieved, currentGame.score);
-      episode++;
-      // Epsilon decay per episode
-      const p2 = getParams();
-      epsilon = Math.max(p2.epsMin, epsilon * p2.epsDecay);
-    }
-    currentGame = gameReset();
-    episodeReward = 0;
-    stepInEpisode = 0;
-  }
-
-  const features = gameGetFeatures(currentGame);
-
-  // Epsilon-greedy
-  let action;
-  if (Math.random() < epsilon) {
-    action = Math.floor(Math.random() * NUM_ACTIONS);
-    lastActionRandom = true;
-  } else {
-    const qVals = forward(policyNet, features);
-    action = argmax(qVals);
-    lastActionRandom = false;
-  }
-  lastAction = action;
-
-  // Step environment
-  const result = gameStep(currentGame, action);
-  const nextFeatures = gameGetFeatures(currentGame);
-
-  // Store experience
-  const p = getParams();
-  replayBuffer.push({
-    state: Float64Array.from(features),
-    action: action,
-    reward: result.reward,
-    nextState: Float64Array.from(nextFeatures),
-    done: result.done
-  });
-  if (replayBuffer.length > p.bufferSize) replayBuffer.shift();
-
-  // Train every 4th step (standard DQN practice for stability)
-  if (totalSteps % 4 === 0 && replayBuffer.length >= p.batchSize) {
-    const batch = [];
-    for (let i = 0; i < p.batchSize; i++) {
-      batch.push(replayBuffer[Math.floor(Math.random() * replayBuffer.length)]);
-    }
-    trainBatch(policyNet, batch, p.lr, p.gamma, targetNet);
-  }
-
-  // Target network update
-  stepsSinceTargetUpdate++;
-  if (stepsSinceTargetUpdate >= p.targetUpdate) {
-    targetNet = copyNetwork(policyNet);
-    stepsSinceTargetUpdate = 0;
-  }
-
-  episodeReward += result.reward;
-  stepInEpisode++;
-  totalSteps++;
-}
-
-// ========================================================================
-// TRAINING LOOP
-// ========================================================================
-function toggleTraining() {
-  if (watchMode) return;
-  if (isTraining) pauseTraining();
-  else startTraining();
-}
-
-function startTraining() {
-  isTraining = true;
-  document.getElementById('btnTrain').innerHTML = '&#9646;&#9646; Pause';
-  document.getElementById('btnTrain').className = 'btn btn-secondary';
-  scheduleTick();
-}
-
-function pauseTraining() {
-  isTraining = false;
-  if (timerId !== null) { clearTimeout(timerId); timerId = null; }
-  document.getElementById('btnTrain').innerHTML = '&#9654; Train';
-  document.getElementById('btnTrain').className = 'btn btn-success';
-}
-
-function scheduleTick() {
-  if (!isTraining) return;
-  const sp = SPEED_LEVELS[speedIdx];
-  timerId = setTimeout(tick, sp.delay);
-}
-
-function tick() {
-  timerId = null;
-  if (!isTraining) return;
-  const sp = SPEED_LEVELS[speedIdx];
-
-  for (let i = 0; i < sp.stepsPerTick; i++) {
-    doOneStep();
-  }
-  renderAll();
-  scheduleTick();
-}
-
-function resetTraining() {
-  pauseTraining();
-  initState();
-  renderAll();
-}
-
-// ========================================================================
-// WATCH GAME MODE
-// ========================================================================
-let watchTimerId = null;
-let wasTrainingBeforeWatch = false;
-
-function watchGame() {
-  if (watchMode) {
-    stopWatching();
-    return;
-  }
-  wasTrainingBeforeWatch = isTraining;
-  if (isTraining) pauseTraining();
-  watchMode = true;
-  document.getElementById('btnWatch').innerHTML = '&#9632; Stop Watching';
-  document.getElementById('btnWatch').className = 'btn btn-warning btn-sm';
-  document.getElementById('btnTrain').disabled = true;
-
-  playWatchEpisode();
-}
-
-function playWatchEpisode() {
-  if (!watchMode) return;
-  const gs = gameReset();
-
-  function watchStep() {
-    if (!watchMode) return;
-    if (gs.done) {
-      // start another episode automatically
-      setTimeout(() => playWatchEpisode(), 500);
-      return;
-    }
-    const features = gameGetFeatures(gs);
-    const qVals = forward(policyNet, features);
-    const action = argmax(qVals);
-    lastAction = action;
-    lastActionRandom = false;
-    gameStep(gs, action);
-    renderGameCanvas(gs);
-    drawNNVisualization();
-    updateStats();
-    watchTimerId = setTimeout(watchStep, 33);
-  }
-  watchStep();
-}
-
-function stopWatching() {
-  watchMode = false;
-  if (watchTimerId) { clearTimeout(watchTimerId); watchTimerId = null; }
-  document.getElementById('btnWatch').innerHTML = '&#9655; Watch Game';
-  document.getElementById('btnWatch').className = 'btn btn-primary btn-sm';
-  document.getElementById('btnTrain').disabled = false;
-  if (wasTrainingBeforeWatch) startTraining();
-}
-
-// ========================================================================
-// GAME CANVAS RENDERING
-// ========================================================================
-const gameCanvas = document.getElementById('gameCanvas');
-const gameCtx = gameCanvas.getContext('2d');
-
-function renderGameCanvas(gs) {
-  const ctx = gameCtx;
-  // Background
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(0, 0, GW, GH);
-
-  // Subtle grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < GW; x += 40) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
-  }
-  for (let y = 0; y < GH; y += 40) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
-  }
-
-  // Bricks
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    for (let c = 0; c < BRICK_COLS; c++) {
-      if (!gs.bricks[r][c]) continue;
-      const bx = BRICK_GAP + c * (BRICK_W + BRICK_GAP);
-      const by = BRICK_TOP + r * (BRICK_H + BRICK_GAP);
-      ctx.fillStyle = BRICK_COLORS[r];
-      ctx.fillRect(bx, by, BRICK_W, BRICK_H);
-      // Top highlight
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.fillRect(bx, by, BRICK_W, 2);
-      // Bottom shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(bx, by + BRICK_H - 2, BRICK_W, 2);
-    }
-  }
-
-  // Paddle
-  const px = gs.paddleX - PADDLE_W / 2;
-  ctx.fillStyle = '#e2e8f0';
-  ctx.beginPath();
-  ctx.roundRect(px, PADDLE_Y, PADDLE_W, PADDLE_H, 4);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.fillRect(px + 2, PADDLE_Y + 1, PADDLE_W - 4, 2);
-
-  // Ball glow
-  const grad = ctx.createRadialGradient(gs.ballX, gs.ballY, 0, gs.ballX, gs.ballY, BALL_R * 4);
-  grad.addColorStop(0, 'rgba(255,255,255,0.15)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(gs.ballX, gs.ballY, BALL_R * 4, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Ball
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(gs.ballX, gs.ballY, BALL_R, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Score overlay
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = 'bold 14px system-ui';
-  ctx.textAlign = 'left';
-  ctx.fillText('Score: ' + gs.score, 8, 22);
-  ctx.textAlign = 'right';
-  ctx.fillText(gs.bricksRemaining + ' left', GW - 8, 22);
-
-  // Ball velocity indicator (tiny arrow)
-  if (!gs.done) {
-    const arrowLen = 12;
-    const ax = gs.ballX + (gs.ballVX / BALL_SPEED) * arrowLen;
-    const ay = gs.ballY + (gs.ballVY / BALL_SPEED) * arrowLen;
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(gs.ballX, gs.ballY);
-    ctx.lineTo(ax, ay);
-    ctx.stroke();
-  }
-}
-
-// ========================================================================
-// NEURAL NETWORK VISUALIZATION
-// ========================================================================
-const nnCanvas = document.getElementById('nnCanvas');
-
-function drawNNVisualization() {
-  const canvas = nnCanvas;
-  const dpr = window.devicePixelRatio || 1;
-  const displayW = canvas.clientWidth;
-  const displayH = canvas.clientHeight || 400;
-  canvas.width = displayW * dpr;
-  canvas.height = displayH * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const W = displayW, H = displayH;
-  ctx.clearRect(0, 0, W, H);
-
-  if (!policyNet) return;
-
-  const layers = policyNet.sizes;
-  const nL = layers.length;
-  const padL = 60, padR = 70, padT = 28, padB = 16;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-
-  // Compute node positions
-  const nodePos = [];
-  for (let l = 0; l < nL; l++) {
-    const x = padL + (l / (nL - 1)) * plotW;
-    const positions = [];
-    const n = layers[l];
-    const maxVisible = Math.min(n, 40);
-    for (let i = 0; i < maxVisible; i++) {
-      const y = padT + ((i + 0.5) / maxVisible) * plotH;
-      positions.push({ x, y, layerIdx: l, nodeIdx: i });
-    }
-    nodePos.push(positions);
-  }
-  nnNodePos = nodePos; // expose for tooltip handler
-
-  // Draw connections
-  for (let l = 0; l < nL - 1; l++) {
-    const w = policyNet.weights[l];
-    const fromN = nodePos[l].length;
-    const toN = nodePos[l + 1].length;
-    const inSize = layers[l], outSize = layers[l + 1];
-
-    // Find max weight for normalization
-    let maxW = 0;
-    for (let i = 0; i < w.length; i++) maxW = Math.max(maxW, Math.abs(w[i]));
-    if (maxW < 0.001) maxW = 1;
-
-    for (let f = 0; f < fromN; f++) {
-      for (let t = 0; t < toN; t++) {
-        const fi = Math.min(f, inSize - 1);
-        const ti = Math.min(t, outSize - 1);
-        const weight = w[fi * outSize + ti];
-        const mag = Math.abs(weight) / maxW;
-        const threshold = (fromN > 20 || toN > 20) ? 0.15 : 0.08;
-        if (mag < threshold) continue;
-
-        // Richer colour gradient: faint at low mag, vivid at high mag
-        const alpha = 0.04 + mag * mag * 0.55;
-        const lw = 0.3 + mag * 2.5;
-        // Positive: red-orange spectrum. Negative: blue-cyan spectrum.
-        const r1 = weight > 0 ? Math.round(220 + mag * 35) : Math.round(30 + mag * 40);
-        const g1 = weight > 0 ? Math.round(50 + mag * 30)  : Math.round(100 + mag * 60);
-        const b1 = weight > 0 ? Math.round(50)              : Math.round(200 + mag * 55);
-        ctx.strokeStyle = `rgba(${r1}, ${g1}, ${b1}, ${alpha})`;
-        ctx.lineWidth = lw;
-        ctx.beginPath();
-        ctx.moveTo(nodePos[l][f].x, nodePos[l][f].y);
-        ctx.lineTo(nodePos[l + 1][t].x, nodePos[l + 1][t].y);
-        ctx.stroke();
-      }
-    }
-  }
-
-  // Draw nodes
-  for (let l = 0; l < nL; l++) {
-    const acts = policyNet.activations ? policyNet.activations[l] : null;
-    let maxAct = 0;
-    if (acts) {
-      for (let i = 0; i < acts.length; i++) maxAct = Math.max(maxAct, Math.abs(acts[i]));
-    }
-    if (maxAct < 0.001) maxAct = 1;
-
-    const n = nodePos[l].length;
-    const r = l === 0 ? 4.5 : l === nL - 1 ? 9 : 5;
-
-    for (let i = 0; i < n; i++) {
-      const { x, y } = nodePos[l][i];
-      let intensity = 0;
-      if (acts && i < acts.length) {
-        intensity = Math.min(1, Math.abs(acts[i]) / maxAct);
-      }
-
-      // Fill: white to green based on activation
-      const g = Math.round(intensity * 180);
-      const baseR = 240 - Math.round(intensity * 100);
-      const baseB = 240 - Math.round(intensity * 140);
-      ctx.fillStyle = `rgb(${baseR}, ${Math.min(255, 240 + g * 0.1)}, ${baseB})`;
-      ctx.strokeStyle = intensity > 0.5 ? '#16a34a' : '#94a3b8';
-      ctx.lineWidth = intensity > 0.5 ? 1.5 : 0.8;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-  }
-
-  // Layer labels
-  ctx.textAlign = 'center';
-  for (let l = 0; l < nL; l++) {
-    const x = nodePos[l][0].x;
-    ctx.fillStyle = '#334155';
-    ctx.font = 'bold 11px system-ui';
-    ctx.fillText(['Input', 'Hidden 1', 'Hidden 2', 'Actions'][l], x, padT - 12);
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px system-ui';
-    ctx.fillText('(' + layers[l] + ')', x, padT - 1);
-  }
-
-  // Input feature labels
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '9px system-ui';
-  ctx.textAlign = 'right';
-  const inputN = Math.min(nodePos[0].length, FEATURE_NAMES.length);
-  for (let i = 0; i < inputN; i++) {
-    const { x, y } = nodePos[0][i];
-    ctx.fillText(FEATURE_NAMES[i], x - 8, y + 3);
-  }
-
-  // Output action labels with Q-values
-  if (policyNet.activations) {
-    const outActs = policyNet.activations[nL - 1];
-    const bestA = argmax(outActs);
-    ctx.textAlign = 'left';
-    for (let i = 0; i < NUM_ACTIONS; i++) {
-      const { x, y } = nodePos[nL - 1][i];
-      const isBest = i === bestA;
-      ctx.fillStyle = isBest ? '#22c55e' : '#94a3b8';
-      ctx.font = isBest ? 'bold 12px system-ui' : '11px system-ui';
-      const qStr = outActs[i] !== undefined ? outActs[i].toFixed(2) : '?';
-      ctx.fillText(ACTION_NAMES[i] + ': ' + qStr, x + 14, y + 4);
-      if (isBest) {
-        // Highlight ring
-        ctx.strokeStyle = '#22c55e';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, 11, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    }
-  }
-}
-
-// ========================================================================
-// TRAINING CHART
-// ========================================================================
-const chartCanvas = document.getElementById('chartCanvas');
-
-function drawChart() {
-  const canvas = chartCanvas;
-  const dpr = window.devicePixelRatio || 1;
-  const parent = canvas.parentElement;
-  const displayW = parent.clientWidth - 32;
-  const displayH = 200;
-  canvas.width = displayW * dpr;
-  canvas.height = displayH * dpr;
-  canvas.style.width = displayW + 'px';
-  canvas.style.height = displayH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const padL = 50, padR = 20, padT = 10, padB = 30;
-  const plotW = displayW - padL - padR;
-  const plotH = displayH - padT - padB;
-
-  // Background
-  ctx.fillStyle = '#fafbfc';
-  ctx.fillRect(padL, padT, plotW, plotH);
-
-  // Use brick scores for chart (not shaped reward)
-  const data = episodeScores;
-
-  if (!data || data.length === 0) {
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '13px system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillText('Start training to see the learning curve', displayW / 2, displayH / 2);
-    return;
-  }
-
-  // Y range: always 0 to total bricks (full scale)
-  const yMin = 0;
-  const yMax = BRICK_ROWS * BRICK_COLS;
-
-  const xScale = plotW / Math.max(1, data.length - 1);
-  const yScale = plotH / (yMax - yMin);
-
-  // Grid lines + Y axis labels
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 1;
-  const yTicks = 5;
-  for (let i = 0; i <= yTicks; i++) {
-    const yVal = yMin + (yMax - yMin) * i / yTicks;
-    const py = padT + plotH - (yVal - yMin) * yScale;
-    ctx.beginPath();
-    ctx.moveTo(padL, py);
-    ctx.lineTo(padL + plotW, py);
-    ctx.stroke();
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px system-ui';
-    ctx.textAlign = 'right';
-    ctx.fillText(Math.round(yVal), padL - 6, py + 3);
-  }
-
-  // Y axis title
-  ctx.save();
-  ctx.translate(12, padT + plotH / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 11px system-ui';
-  ctx.textAlign = 'center';
-  ctx.fillText('Bricks Cleared', 0, 0);
-  ctx.restore();
-
-  // X axis label
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '10px system-ui';
-  ctx.textAlign = 'center';
-  ctx.fillText('Episode', padL + plotW / 2, displayH - 4);
-
-  // Downsample
-  const maxPts = 2000;
-  const step = Math.max(1, Math.floor(data.length / maxPts));
-
-  // Raw scores (orange, faded)
-  ctx.strokeStyle = 'rgba(249, 115, 22, 0.35)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let i = 0; i < data.length; i += step) {
-    const px = padL + i * xScale;
-    const py = padT + plotH - (data[i] - yMin) * yScale;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
-  ctx.stroke();
-
-  // Running average (blue, bold)
-  ctx.strokeStyle = '#3b82f6';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  let sum = 0, count = 0;
-  const avgWindow = 100;
-  for (let i = 0; i < data.length; i++) {
-    sum += data[i];
-    count++;
-    if (count > avgWindow) { sum -= data[i - avgWindow]; count = avgWindow; }
-    if (i % step === 0) {
-      const avg = sum / count;
-      const px = padL + i * xScale;
-      const py = padT + plotH - (avg - yMin) * yScale;
-      if (i < step) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-  }
-  ctx.stroke();
-
-  // Current episode marker
-  ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  const cx = padL + (data.length - 1) * xScale;
-  ctx.beginPath();
-  ctx.moveTo(cx, padT);
-  ctx.lineTo(cx, padT + plotH);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Episode count label
-  ctx.fillStyle = '#64748b';
-  ctx.font = '10px system-ui';
-  ctx.textAlign = 'right';
-  ctx.fillText('Ep ' + data.length, padL + plotW, displayH - 4);
-}
-
-// ========================================================================
-// STATS UPDATE
-// ========================================================================
-function updateStats() {
-  document.getElementById('statEpisode').textContent = episode.toLocaleString();
-  document.getElementById('statStep').textContent = totalSteps.toLocaleString();
-
-  const epEl = document.getElementById('statEpsilon');
-  epEl.textContent = epsilon.toFixed(4);
-  epEl.className = epsilon > 0.3 ? 'stat-value explore' : 'stat-value exploit';
-
-  // Average brick score (last 100)
-  if (episodeScores && episodeScores.length > 0) {
-    const last100 = episodeScores.slice(-100);
-    const avg = last100.reduce((a, b) => a + b, 0) / last100.length;
-    document.getElementById('statAvgScore').textContent = avg.toFixed(1);
-  }
-
-  document.getElementById('statMaxScore').textContent = maxScoreAchieved;
-
-  // Action indicator
-  const actEl = document.getElementById('statAction');
-  actEl.textContent = ACTION_NAMES[lastAction] || '--';
-  actEl.className = 'action-indicator ' + (lastActionRandom ? 'random' : 'greedy');
-}
-
-// ========================================================================
-// RENDER ALL
-// ========================================================================
-let nnRenderCounter = 0;
-
-function renderAll() {
-  renderGameCanvas(currentGame);
-
-  // Throttle NN viz at high speeds
-  nnRenderCounter++;
-  const sp = SPEED_LEVELS[speedIdx];
-  if (sp.mode === 'frame' || nnRenderCounter % 3 === 0) {
-    // Run a forward pass for visualization if needed
-    if (currentGame && !currentGame.done) {
-      forward(policyNet, gameGetFeatures(currentGame));
-    }
-    drawNNVisualization();
-  }
-
-  drawChart();
-  updateStats();
-}
-
-// ========================================================================
-// INIT
-// ========================================================================
-function positionTooltips() {
-  document.querySelectorAll('.param-slider').forEach(slider => {
-    const tip = slider.querySelector('.param-tooltip');
-    if (!tip) return;
-    const rect = slider.getBoundingClientRect();
-    if (rect.left + 300 > window.innerWidth) {
-      tip.classList.add('tip-right');
-    } else {
-      tip.classList.remove('tip-right');
-    }
-  });
-}
-
-// ========================================================================
-// NEURAL NETWORK TOOLTIP
-// ========================================================================
-(function setupNNTooltip() {
-  const canvas = document.getElementById('nnCanvas');
-  const tooltip = document.getElementById('nnTooltip');
-  const cardBody = canvas.parentElement;
-
-  function getLayerLabel(l, nL) {
-    if (l === 0) return 'Input Layer';
-    if (l === nL - 1) return 'Output Layer';
-    return 'Hidden Layer ' + l;
-  }
-
-  canvas.addEventListener('mousemove', function(e) {
-    if (!policyNet || !policyNet.activations || nnNodePos.length === 0) {
-      tooltip.style.display = 'none';
-      return;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.clientWidth / rect.width;
-    const scaleY = canvas.clientHeight / rect.height;
-    const mx = (e.clientX - rect.left) * scaleX;
-    const my = (e.clientY - rect.top) * scaleY;
-
-    // Find nearest node
-    let closest = null, closestDist = Infinity;
-    for (let l = 0; l < nnNodePos.length; l++) {
-      for (let i = 0; i < nnNodePos[l].length; i++) {
-        const node = nnNodePos[l][i];
-        const d = Math.hypot(mx - node.x, my - node.y);
-        if (d < closestDist) { closestDist = d; closest = { l, i, x: node.x, y: node.y }; }
-      }
-    }
-
-    const hitRadius = 18;
-    if (!closest || closestDist > hitRadius) {
-      tooltip.style.display = 'none';
-      return;
-    }
-
-    const { l, i } = closest;
-    const nL = nnNodePos.length;
-    const acts = policyNet.activations;
-    const actVal = (acts && acts[l] && i < acts[l].length) ? acts[l][i] : null;
-
-    let html = '';
-
-    if (l === 0) {
-      // Input layer — show feature name, description, value
-      const name = FEATURE_NAMES[i] || ('Feature ' + i);
-      const desc = FEATURE_DESCS[i] || '';
-      const val = actVal !== null ? actVal.toFixed(4) : '—';
-      html += '<div class="tt-label">' + name + '</div>';
-      html += '<div class="tt-desc">' + desc + '</div>';
-      html += '<div class="tt-val">Value: ' + val + '</div>';
-      // Mini bar
-      const pct = actVal !== null ? Math.min(100, Math.max(0, actVal * 100)) : 0;
-      html += '<div class="tt-bar-wrap"><div class="tt-bar" style="width:' + pct + '%;background:#3b82f6;"></div></div>';
-
-    } else if (l === nL - 1) {
-      // Output layer — show action, Q-value, whether best
-      const actionName = ACTION_NAMES[i] || ('Action ' + i);
-      const actionDesc = ACTION_DESCS[i] || '';
-      const qVal = actVal !== null ? actVal.toFixed(3) : '—';
-      const bestA = acts ? argmax(acts[nL - 1]) : -1;
-      const isBest = i === bestA;
-      html += '<div class="tt-label">' + actionName + (isBest ? ' ★ Best' : '') + '</div>';
-      html += '<div class="tt-desc">' + actionDesc + '</div>';
-      html += '<div class="tt-val">Q-value: ' + qVal + '</div>';
-      if (isBest) {
-        html += '<div style="color:#4ade80;font-size:11px;margin-top:2px;">The agent would choose this action right now.</div>';
-      }
-      // Show weight stats feeding into this output
-      const wLayer = policyNet.weights[l - 1];
-      const prevSize = policyNet.sizes[l - 1];
-      let wSum = 0, wAbsMax = 0, wCount = 0;
-      for (let p = 0; p < prevSize; p++) {
-        const w = wLayer[p * policyNet.sizes[l] + i];
-        wSum += w;
-        wAbsMax = Math.max(wAbsMax, Math.abs(w));
-        wCount++;
-      }
-      html += '<div style="color:#94a3b8;font-size:10.5px;margin-top:4px;">Incoming weights: mean ' + (wSum / wCount).toFixed(3) + ', max |w| ' + wAbsMax.toFixed(3) + '</div>';
-      html += '<div style="color:#94a3b8;font-size:10.5px;">Bias: ' + policyNet.biases[l - 1][i].toFixed(4) + '</div>';
-
-    } else {
-      // Hidden layer — show neuron index, activation, ReLU status, weight stats
-      const activation = actVal !== null ? actVal.toFixed(4) : '—';
-      const isActive = actVal !== null && actVal > 0;
-      html += '<div class="tt-label">' + getLayerLabel(l, nL) + ', Neuron ' + i + '</div>';
-      html += '<div class="tt-desc">Applies ReLU: outputs max(0, weighted sum). ' + (isActive ? 'Currently <span style="color:#4ade80;">active</span> (firing).' : 'Currently <span style="color:#f87171;">inactive</span> (suppressed by ReLU).') + '</div>';
-      html += '<div class="tt-val">Activation: ' + activation + '</div>';
-      // Weight stats
-      const wLayer = policyNet.weights[l - 1];
-      const prevSize = policyNet.sizes[l - 1];
-      let wMin = Infinity, wMax = -Infinity, wAbsSum = 0;
-      for (let p = 0; p < prevSize; p++) {
-        const w = wLayer[p * policyNet.sizes[l] + i];
-        wMin = Math.min(wMin, w);
-        wMax = Math.max(wMax, w);
-        wAbsSum += Math.abs(w);
-      }
-      html += '<div style="color:#94a3b8;font-size:10.5px;margin-top:4px;">Incoming weights: min ' + wMin.toFixed(3) + ', max ' + wMax.toFixed(3) + ', mean |w| ' + (wAbsSum / prevSize).toFixed(3) + '</div>';
-      html += '<div style="color:#94a3b8;font-size:10.5px;">Bias: ' + policyNet.biases[l - 1][i].toFixed(4) + '</div>';
-    }
-
-    tooltip.innerHTML = html;
-    tooltip.style.display = 'block';
-
-    // Position tooltip relative to card body
-    const cardRect = cardBody.getBoundingClientRect();
-    let tipX = e.clientX - cardRect.left + 14;
-    let tipY = e.clientY - cardRect.top - 10;
-    // Keep within card bounds
-    const tipW = tooltip.offsetWidth;
-    const tipH = tooltip.offsetHeight;
-    if (tipX + tipW > cardBody.clientWidth - 8) tipX = e.clientX - cardRect.left - tipW - 10;
-    if (tipY + tipH > cardBody.clientHeight - 8) tipY = cardBody.clientHeight - tipH - 8;
-    if (tipY < 4) tipY = 4;
-    tooltip.style.left = tipX + 'px';
-    tooltip.style.top = tipY + 'px';
-  });
-
-  canvas.addEventListener('mouseleave', function() {
-    tooltip.style.display = 'none';
-  });
-})();
-
-function init() {
-  initState();
-  renderAll();
-  positionTooltips();
-  window.addEventListener('resize', positionTooltips);
-}
-
-init();
-</script>
+        function getColorForQValue(val) {
+            // Helper to map a Q-value (0 to 1) to a color gradient (Slate -> Emerald Green)
+            // And negative Q-values (-1 to 0) to a red gradient
+            if (Math.abs(val) <= 0.001) return '#1e293b'; // slate-800
+            
+            if (val > 0) {
+                // Positive: Green
+                const clamped = Math.min(val, 1);
+                const lightness = 20 + (clamped * 35); 
+                const saturation = 50 + (clamped * 50);
+                return `hsl(142, ${saturation}%, ${lightness}%)`;
+            } else {
+                // Negative: Red
+                const clamped = Math.min(Math.abs(val), 1);
+                const lightness = 20 + (clamped * 30); 
+                const saturation = 50 + (clamped * 40);
+                return `hsl(0, ${saturation}%, ${lightness}%)`;
+            }
+        }
+
+        function updateQTableRender(stateToUpdate = null) {
+            // Only update the state that changed to optimize performance, unless null is passed (update all)
+            const states = stateToUpdate !== null ? [stateToUpdate] : Array.from({length: 16}, (_, i) => i);
+            
+            states.forEach(s => {
+                if (envMap[s] === 'H' || envMap[s] === 'G') return; // Skip terminal states visual update
+
+                for (let a = 0; a < NUM_ACTIONS; a++) {
+                    const val = qTable[s][a];
+                    const bg = document.getElementById(`q-bg-${s}-${a}`);
+                    const text = document.getElementById(`q-text-${s}-${a}`);
+                    
+                    if (bg && text) {
+                        bg.style.backgroundColor = getColorForQValue(val);
+                        // Only show text if value is significant to reduce visual noise
+                        if (Math.abs(val) > 0.001) {
+                            text.textContent = val.toFixed(2);
+                            text.style.opacity = "1";
+                        } else {
+                            text.textContent = "";
+                            text.style.opacity = "0";
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStatsRender() {
+            statEpisode.innerText = episodeCount;
+            statEpsilon.innerText = epsilon.toFixed(3);
+            
+            if (recentResults.length > 0) {
+                const wins = recentResults.reduce((a, b) => a + b, 0);
+                const rate = Math.round((wins / recentResults.length) * 100);
+                statSuccess.innerText = `${rate}%`;
+                
+                // Colorize success rate
+                if (rate > 50) statSuccess.className = "text-2xl font-mono text-emerald-400";
+                else if (rate > 10) statSuccess.className = "text-2xl font-mono text-yellow-400";
+                else statSuccess.className = "text-2xl font-mono text-slate-400";
+            }
+        }
+
+        // --- 6. Core RL Environment Dynamics ---
+        function getNextStateDeterministic(state, action) {
+            let row = Math.floor(state / 4);
+            let col = state % 4;
+            
+            if (action === ACTIONS.LEFT) col = Math.max(0, col - 1);
+            if (action === ACTIONS.DOWN) row = Math.min(3, row + 1);
+            if (action === ACTIONS.RIGHT) col = Math.min(3, col + 1);
+            if (action === ACTIONS.UP) row = Math.max(0, row - 1);
+            
+            return row * 4 + col;
+        }
+
+        function stepEnv(state, intendedAction) {
+            let actualAction = intendedAction;
+            
+            // Slippery logic: 1/3 chance to do intended, 1/3 chance to slip left, 1/3 chance to slip right
+            if (isSlippery) {
+                const rand = Math.random();
+                if (rand < 0.333) {
+                    actualAction = (intendedAction + 3) % 4; // slip counter-clockwise
+                } else if (rand > 0.666) {
+                    actualAction = (intendedAction + 1) % 4; // slip clockwise
+                }
+            }
+
+            const nextState = getNextStateDeterministic(state, actualAction);
+            const type = envMap[nextState];
+            
+            let reward = type === 'G' ? 1.0 : 0.0;
+            const done = type === 'G' || type === 'H';
+            
+            // Apply step penalty if enabled (and we haven't reached the goal)
+            if (useStepPenalty && type !== 'G') {
+                reward = -0.01;
+            }
+            
+            return { nextState, reward, done, type };
+        }
+
+        // --- 7. Q-Learning Algorithm ---
+        function chooseAction(state) {
+            // Epsilon-greedy exploration
+            if (Math.random() < epsilon) {
+                return Math.floor(Math.random() * NUM_ACTIONS); // Explore
+            } else {
+                // Exploit (Argmax)
+                const maxQ = Math.max(...qTable[state]);
+                // Handle ties randomly to prevent getting stuck
+                const bestActions = [];
+                for (let a = 0; a < NUM_ACTIONS; a++) {
+                    if (qTable[state][a] === maxQ) bestActions.push(a);
+                }
+                return bestActions[Math.floor(Math.random() * bestActions.length)];
+            }
+        }
+
+        function resetEpisode(won) {
+            // Build log entry before clearing
+            if (currentEpisodeLog.length > 0) {
+                const logContainer = document.getElementById('episode-logs');
+                const logEntry = document.createElement('div');
+                logEntry.className = `p-2 rounded ${won ? 'bg-emerald-900/30 text-emerald-300' : 'bg-red-900/30 text-red-300'} border ${won ? 'border-emerald-800' : 'border-red-800'} mb-1 break-words`;
+                const stepsStr = currentEpisodeLog.join(' ');
+                // Truncate if insanely long
+                const displaySteps = stepsStr.length > 300 ? stepsStr.substring(0, 300) + '... (truncated)' : stepsStr;
+                logEntry.innerHTML = `<span class="font-bold text-slate-100">Ep ${episodeCount}:</span> ${displaySteps} ${won ? '🏆 Goal!' : '🕳️ Hole!'}`;
+                logContainer.prepend(logEntry);
+                
+                // Limit logs to last 50 entries
+                while (logContainer.children.length > 50) {
+                    logContainer.removeChild(logContainer.lastChild);
+                }
+            }
+            currentEpisodeLog = [];
+
+            // Track stats
+            recentResults.push(won ? 1 : 0);
+            if (recentResults.length > 100) recentResults.shift(); // Keep last 100
+            
+            episodeCount++;
+            epsilon = Math.max(minEpsilon, epsilon * epsilonDecay); // Decay epsilon
+            
+            // Update Chart every 10 episodes
+            if (episodeCount % 10 === 0) {
+                const wins = recentResults.reduce((a, b) => a + b, 0);
+                const rate = recentResults.length > 0 ? Math.round((wins / recentResults.length) * 100) : 0;
+                chartLabels.push(episodeCount);
+                chartData.push(rate);
+                
+                chartInstance.update();
+            }
+
+            currentState = 0; // Reset agent to Start
+            updateStatsRender();
+            updateEnvironmentRender();
+        }
+
+        function executeSingleStep() {
+            // 1. Choose action
+            const action = chooseAction(currentState);
+            
+            // Log action
+            currentEpisodeLog.push(actionSymbols[action]);
+            
+            // 2. Take action in environment
+            const { nextState, reward, done, type } = stepEnv(currentState, action);
+            
+            // 3. Update Q-Table (Bellman Equation)
+            const oldQ = qTable[currentState][action];
+            const maxFutureQ = Math.max(...qTable[nextState]);
+            
+            // Q(s,a) = Q(s,a) + alpha * [reward + gamma * max(Q(s',a')) - Q(s,a)]
+            qTable[currentState][action] = oldQ + alpha * (reward + gamma * maxFutureQ - oldQ);
+            
+            // 4. Update UI for the state we just modified
+            updateQTableRender(currentState);
+            
+            // 5. Move agent
+            currentState = nextState;
+            updateEnvironmentRender();
+
+            // 6. Check if episode ended
+            if (done) {
+                const isWin = type === 'G';
+                // If moving fast, reset immediately. If slow, user might want a slight delay to see the death/win
+                return { episodeEnded: true, isWin: isWin };
+            }
+            return { episodeEnded: false };
+        }
+
+        // --- 8. Playback Loop ---
+        function runLoop() {
+            if (!isPlaying) return;
+
+            const speedValue = parseInt(speedSlider.value);
+            
+            // Dynamic execution speed logic
+            // If slider is low, we use setTimeout to add visual delay.
+            // If slider is high, we run multiple steps instantly before yielding to the browser renderer.
+            let delay = 0;
+            let stepsPerFrame = 1;
+
+            if (speedValue <= 50) {
+                delay = 1000 - (speedValue * 18); // 1000ms down to ~100ms
+            } else if (speedValue <= 200) {
+                delay = Math.max(10, 150 - speedValue); // Fast visual updates
+            } else {
+                delay = 0; // run via requestAnimationFrame effectively
+                stepsPerFrame = Math.floor((speedValue - 200) / 5) + 2; // Run multiple steps instantly
+            }
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                const result = executeSingleStep();
+                
+                if (result.episodeEnded) {
+                    resetEpisode(result.isWin);
+                    // Pause briefly on death/win if running slowly for educational clarity
+                    if (speedValue < 100) {
+                        loopTimeout = setTimeout(runLoop, 500); 
+                        return;
+                    }
+                }
+            }
+
+            if (delay > 0) {
+                loopTimeout = setTimeout(runLoop, delay);
+            } else {
+                // Yield to browser to paint UI
+                loopTimeout = requestAnimationFrame(runLoop);
+            }
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                btnPlay.innerText = "Pause";
+                btnPlay.classList.replace('bg-blue-600', 'bg-yellow-600');
+                btnPlay.classList.replace('hover:bg-blue-500', 'hover:bg-yellow-500');
+                btnStep.disabled = true;
+                btnStep.classList.add('opacity-50', 'cursor-not-allowed');
+                runLoop();
+            } else {
+                btnPlay.innerText = "Play";
+                btnPlay.classList.replace('bg-yellow-600', 'bg-blue-600');
+                btnPlay.classList.replace('hover:bg-yellow-500', 'hover:bg-blue-500');
+                btnStep.disabled = false;
+                btnStep.classList.remove('opacity-50', 'cursor-not-allowed');
+                clearTimeout(loopTimeout);
+                cancelAnimationFrame(loopTimeout);
+            }
+        }
+
+        // --- 9. Event Listeners ---
+        btnPlay.addEventListener('click', togglePlay);
+        
+        btnStep.addEventListener('click', () => {
+            if (!isPlaying) {
+                const result = executeSingleStep();
+                if (result.episodeEnded) {
+                    setTimeout(() => resetEpisode(result.isWin), 300); // Small delay on manual step
+                }
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            if (isPlaying) togglePlay(); // Pause if playing
+            
+            // Reset Data
+            qTable = Array(NUM_STATES).fill(0).map(() => Array(NUM_ACTIONS).fill(0));
+            currentState = 0;
+            episodeCount = 0;
+            epsilon = 1.0;
+            recentResults = [];
+            currentEpisodeLog = [];
+            
+            // Reset Chart & Logs
+            chartLabels.length = 0;
+            chartData.length = 0;
+            chartInstance.update();
+            document.getElementById('episode-logs').innerHTML = '';
+            
+            // Reset UI
+            updateQTableRender(null); // null means update all
+            updateEnvironmentRender();
+            updateStatsRender();
+        });
+
+        // Sliders config
+        speedSlider.addEventListener('input', (e) => {
+            document.getElementById('speed-val').innerText = e.target.value + 'x';
+        });
+
+        alphaSlider.addEventListener('input', (e) => {
+            alpha = parseFloat(e.target.value);
+            document.getElementById('alpha-val').innerText = alpha.toFixed(2);
+        });
+
+        gammaSlider.addEventListener('input', (e) => {
+            gamma = parseFloat(e.target.value);
+            document.getElementById('gamma-val').innerText = gamma.toFixed(2);
+        });
+
+        slipperyToggle.addEventListener('change', (e) => {
+            isSlippery = e.target.checked;
+            // Optionally auto-reset when changing environment rules, or let the agent un-learn the hard way!
+            // We'll let them unlearn for educational purposes.
+        });
+
+        penaltyToggle.addEventListener('change', (e) => {
+            useStepPenalty = e.target.checked;
+            
+            // Automatically adjust hyperparameters for better convergence when penalty is toggled
+            if (useStepPenalty) {
+                alpha = 0.10;
+                gamma = 0.99;
+            } else {
+                alpha = 0.80;
+                gamma = 0.95;
+            }
+            
+            // Update the UI sliders and labels to reflect the new optimal parameters
+            alphaSlider.value = alpha;
+            document.getElementById('alpha-val').innerText = alpha.toFixed(2);
+            
+            gammaSlider.value = gamma;
+            document.getElementById('gamma-val').innerText = gamma.toFixed(2);
+        });
+
+        // --- Boot Application ---
+        initChart();
+        initGrid();
+        updateEnvironmentRender();
+        updateStatsRender();
+
+    </script>
 </body>
 </html>
